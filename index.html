@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zpx — Reverse Proxy</title>
+<meta name="description" content="A reverse proxy written in Zig. HTTP/2, kTLS offload, ACME, hot reload, Docker discovery.">
+<style>
+:root {
+  --bg: #0e1117;
+  --bg-card: #161b22;
+  --bg-code: #1c2129;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent: #f7a41d;
+  --accent-dim: #c8851a;
+  --link: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --purple: #bc8cff;
+  --cyan: #79c0ff;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --sidebar-w: 240px;
+  --content-max: 820px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 2rem; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Sidebar ── */
+
+nav {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.5rem 1rem;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 10;
+}
+
+nav .logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.25rem;
+}
+
+nav .tagline {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+nav ul { list-style: none; }
+
+nav ul li a {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  margin: 0.1rem 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+nav ul li a:hover,
+nav ul li a.active {
+  color: var(--text);
+  background: var(--bg-card);
+  text-decoration: none;
+}
+
+nav .sep {
+  height: 1px;
+  background: var(--border);
+  margin: 0.75rem 0;
+}
+
+nav .ext {
+  margin-top: 0.5rem;
+}
+
+nav .ext a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.3rem 0.6rem;
+}
+
+nav .ext a:hover { color: var(--text); text-decoration: none; }
+
+nav .ext svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* ── Main ── */
+
+main {
+  margin-left: var(--sidebar-w);
+  max-width: calc(var(--content-max) + 6rem);
+  padding: 2.5rem 3rem 4rem;
+}
+
+/* ── Hero ── */
+
+.hero {
+  text-align: center;
+  padding: 3rem 0 2.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2.5rem;
+}
+
+.hero h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.hero p {
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.badges {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--bg-card);
+  letter-spacing: 0.02em;
+}
+
+.badge.zig { color: var(--accent); border-color: var(--accent-dim); }
+.badge.h2 { color: var(--cyan); border-color: #2d5a8e; }
+.badge.tls { color: var(--purple); border-color: #6e4faa; }
+.badge.acme { color: var(--green); border-color: #2d6a3e; }
+
+/* ── Sections ── */
+
+section { margin-bottom: 3rem; }
+
+h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 1.75rem 0 0.6rem;
+}
+
+h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 1.25rem 0 0.4rem;
+}
+
+p { margin-bottom: 0.75rem; }
+
+ul, ol {
+  margin: 0.5rem 0 1rem 1.5rem;
+}
+
+li { margin-bottom: 0.3rem; }
+
+strong { color: var(--text); font-weight: 600; }
+
+/* ── Code ── */
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-code);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  color: var(--cyan);
+}
+
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 0.75rem 0 1.25rem;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.84rem;
+  color: var(--text);
+}
+
+/* syntax: comments */
+pre .c { color: var(--text-dim); }
+/* syntax: strings */
+pre .s { color: var(--green); }
+/* syntax: keywords / keys */
+pre .k { color: var(--purple); }
+/* syntax: values */
+pre .v { color: var(--cyan); }
+/* syntax: section headers */
+pre .h { color: var(--accent); font-weight: 600; }
+
+/* ── Tables ── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:last-child td { border-bottom: none; }
+
+/* ── Architecture diagram ── */
+
+.arch {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  margin: 0.75rem 0 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  white-space: pre;
+}
+
+/* ── Feature grid ── */
+
+.features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.feat {
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.feat strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 0.2rem;
+}
+
+.feat span {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+  nav { display: none; }
+  main {
+    margin-left: 0;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  .features { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2.2rem; }
+}
+
+/* ── Scrollbar ── */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">zpx</div>
+  <div class="tagline">Reverse proxy written in Zig</div>
+  <ul>
+    <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#listeners">Listeners</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#routes">Routes</a></li>
+    <li><a href="#includes">Includes</a></li>
+    <div class="sep"></div>
+    <li><a href="#acme">ACME</a></li>
+    <li><a href="#docker">Docker Discovery</a></li>
+    <li><a href="#dashboard">Admin Dashboard</a></li>
+    <div class="sep"></div>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#building">Building</a></li>
+    <li><a href="#example">Full Example</a></li>
+  </ul>
+  <div class="ext">
+    <a href="https://github.com/lambertjamesd/zpx">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<main>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>zpx</h1>
+  <p>A reverse proxy written in Zig.<br>
+  HTTP/2 frontends &middot; h2c multiplexed upstreams &middot; kTLS offload &middot; ACME &middot; hot reload &middot; Docker discovery</p>
+  <div class="badges">
+    <span class="badge zig">Zig 0.16-dev</span>
+    <span class="badge h2">HTTP/2 + h2c</span>
+    <span class="badge tls">TLS 1.3 + kTLS</span>
+    <span class="badge acme">ACME</span>
+    <span class="badge">MIT License</span>
+  </div>
+</div>
+
+<!-- Quickstart -->
+<section id="quickstart">
+<h2>Quickstart</h2>
+<pre><code><span class="c"># Build</span>
+zig build -Doptimize=ReleaseFast
+
+<span class="c"># Create config</span>
+cat &gt; zpx.toml &lt;&lt; 'EOF'
+<span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>
+
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"app"</span>
+<span class="k">backends</span> = [<span class="s">"http://localhost:3000"</span>]
+
+<span class="h">[[route]]</span>
+<span class="k">path</span> = <span class="s">"/"</span>
+<span class="k">service</span> = <span class="s">"app"</span>
+EOF
+
+<span class="c"># Run</span>
+./zig-out/bin/zpx zpx.toml</code></pre>
+
+<p>zpx is now proxying traffic on <code>:8080</code> to your backend on <code>:3000</code>.</p>
+
+<h3>Add TLS</h3>
+<pre><code><span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
+<span class="k">tls_cert</span> = <span class="s">"/path/cert.pem"</span>
+<span class="k">tls_key</span> = <span class="s">"/path/key.pem"</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"https"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"http"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
+<span class="k">tls</span> = <span class="v">false</span></code></pre>
+
+<p>Listeners handle the public-facing ports. TLS listeners terminate TLS and negotiate HTTP/2 via ALPN. Plain listeners (<code>tls = false</code>) shuttle bytes directly to the internal httpz server &mdash; useful for HTTP-to-HTTPS redirects or ACME HTTP-01 challenges.</p>
+
+<h3>Validate config</h3>
+<pre><code>zpx validate zpx.toml</code></pre>
+</section>
+
+<!-- Features -->
+<section id="features">
+<h2>Features</h2>
+<div class="features">
+  <div class="feat"><strong>Reverse Proxy</strong><span>HTTP/1.1 and HTTP/2 with hop-by-hop filtering and X-Forwarded-For/Proto/Host injection</span></div>
+  <div class="feat"><strong>HTTP/2 Frontend</strong><span>Full h2 over TLS via ALPN and nghttp2 with CPU-pinned worker pool</span></div>
+  <div class="feat"><strong>h2c Upstream</strong><span>Multiplexed HTTP/2 cleartext to backends with streaming flow control, GOAWAY retry, and 1 MB windows</span></div>
+  <div class="feat"><strong>kTLS Offload</strong><span>After handshake, cipher keys pushed to kernel &mdash; encrypt/decrypt in kernel space</span></div>
+  <div class="feat"><strong>Load Balancing</strong><span>Six algorithms: round_robin, least_conn, least_latency, consistent_hash, peak_ewma, p2c</span></div>
+  <div class="feat"><strong>Health Checks</strong><span>Automatic backend polling with configurable path and interval</span></div>
+  <div class="feat"><strong>Circuit Breaker</strong><span>Per-backend with configurable threshold and recovery duration</span></div>
+  <div class="feat"><strong>TLS 1.3</strong><span>Native TLS via tls.zig with ALPN negotiation</span></div>
+  <div class="feat"><strong>Multiple Listeners</strong><span>Named listeners &mdash; TLS or plain, each on its own port</span></div>
+  <div class="feat"><strong>ACME Certificates</strong><span>Automatic provisioning and renewal via acme.sh (HTTP-01 and DNS-01)</span></div>
+  <div class="feat"><strong>Hot Reload</strong><span>SIGHUP reloads routes, services, pools, rate limiters, IP allowlists, and TLS certs atomically</span></div>
+  <div class="feat"><strong>Docker Discovery</strong><span>Auto-discover containers via Docker socket labels</span></div>
+  <div class="feat"><strong>WebSocket Proxy</strong><span>Transparent upgrade and bidirectional proxying with origin filtering</span></div>
+  <div class="feat"><strong>gRPC Streaming</strong><span>TCP-level proxy on a dedicated listener per gRPC service</span></div>
+  <div class="feat"><strong>Request Mirroring</strong><span>Copy traffic to a secondary URL for shadow testing</span></div>
+  <div class="feat"><strong>Rate Limiting</strong><span>Per-route token-bucket by client IP</span></div>
+  <div class="feat"><strong>IP Allowlist</strong><span>Per-route and per-service CIDR access control (403 or TCP drop)</span></div>
+  <div class="feat"><strong>Per-IP Limits</strong><span>Connection limiting across TLS, gRPC, and WebSocket (64 max)</span></div>
+  <div class="feat"><strong>HSTS</strong><span>Per-route Strict-Transport-Security with preload support</span></div>
+  <div class="feat"><strong>CORS</strong><span>Configurable cross-origin headers per route</span></div>
+  <div class="feat"><strong>Compression</strong><span>Brotli, zstd, and gzip with Accept-Encoding q-value negotiation</span></div>
+  <div class="feat"><strong>Logging</strong><span>Per-route request/response logging in text or JSON</span></div>
+  <div class="feat"><strong>Custom Headers</strong><span>Inject response headers per route</span></div>
+  <div class="feat"><strong>Smart Routing</strong><span>Host + path with specificity scoring, weights, listener filtering, POSIX regex</span></div>
+  <div class="feat"><strong>Retry</strong><span>Auto-retry GET/HEAD/OPTIONS on connection failure</span></div>
+  <div class="feat"><strong>Graceful Shutdown</strong><span>SIGINT/SIGTERM drains connections before exit</span></div>
+  <div class="feat"><strong>Admin Dashboard</strong><span>Real-time metrics with WebSocket push and token auth</span></div>
+  <div class="feat"><strong>Tracing</strong><span>Auto-injects W3C traceparent when missing</span></div>
+  <div class="feat"><strong>Config Includes</strong><span>Split config across conf.d/*.toml with glob patterns</span></div>
+  <div class="feat"><strong>Config Validation</strong><span>zpx validate subcommand checks config and exits</span></div>
+</div>
+</section>
+
+<!-- Configuration -->
+<section id="configuration">
+<h2>Configuration</h2>
+
+<p>zpx uses TOML. Pass the config path as the first argument (defaults to <code>zpx.toml</code>).</p>
+<p>Config is split into <strong>services</strong> (backend pools) and <strong>routes</strong> (matching + middleware). Multiple routes can share a service.</p>
+
+<h3>Server</h3>
+<pre><code><span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>            <span class="c"># Internal HTTP listen address (IPv6: "[::]:8080")</span>
+<span class="k">workers</span> = <span class="v">4</span>                       <span class="c"># httpz worker threads (default: 4)</span>
+<span class="k">tls_cert</span> = <span class="s">"/path/cert.pem"</span>       <span class="c"># TLS certificate (optional if using ACME)</span>
+<span class="k">tls_key</span> = <span class="s">"/path/key.pem"</span>         <span class="c"># TLS private key (optional if using ACME)</span>
+<span class="k">proxy_timeout</span> = <span class="v">30</span>                <span class="c"># Upstream timeout in seconds (1-3600, default: 30)</span>
+<span class="k">max_request_body</span> = <span class="v">10485760</span>       <span class="c"># Max request body bytes (default: 10 MB, max: 1 GiB)</span>
+<span class="k">max_response_body</span> = <span class="v">67108864</span>      <span class="c"># Max response body bytes (default: 64 MB, max: 1 GiB)</span>
+<span class="k">send_strategy</span> = <span class="s">"msg_more"</span>        <span class="c"># kTLS send path: "msg_more" | "cork" (default: msg_more)</span>
+<span class="k">admin_bind</span> = <span class="s">"127.0.0.1:9090"</span>    <span class="c"># Admin dashboard address (optional)</span>
+<span class="k">admin_token</span> = <span class="s">"secret"</span>            <span class="c"># Bearer token for dashboard auth</span>
+<span class="k">admin_insecure</span> = <span class="v">false</span>            <span class="c"># Skip auth for trusted networks</span></code></pre>
+
+<p>When <code>admin_bind</code> is set, you must provide either <code>admin_token</code> or <code>admin_insecure = true</code>.</p>
+</section>
+
+<!-- Listeners -->
+<section id="listeners">
+<h2>Listeners</h2>
+
+<p>Listeners bind public-facing ports. Each listener is either TLS (default) or plain.</p>
+
+<pre><code><span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"https"</span>                    <span class="c"># Unique name (required)</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span>             <span class="c"># Listen address (required)</span>
+<span class="k">tls</span> = <span class="v">true</span>                        <span class="c"># TLS termination (default: true)</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"http"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
+<span class="k">tls</span> = <span class="v">false</span>                       <span class="c"># Plain TCP shuttle to httpz</span></code></pre>
+
+<p>TLS listeners terminate TLS 1.3 with ALPN negotiation. HTTP/2 connections are handled by the h2 worker pool; HTTP/1.1 connections are shuttled to httpz. Plain listeners forward bytes directly to httpz without TLS.</p>
+
+<p><code>tls_cert</code> and <code>tls_key</code> are required when any listener has <code>tls = true</code> (unless <code>acme_domain</code> is set).</p>
+
+<p>Routes can be restricted to a specific listener with <code>listener = "name"</code>.</p>
+</section>
+
+<!-- Services -->
+<section id="services">
+<h2>Services</h2>
+
+<p>A service defines a backend pool with balancing, health checks, and circuit breaker settings.</p>
+
+<pre><code><span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"api"</span>                     <span class="c"># Unique name (required)</span>
+<span class="k">backends</span> = [                     <span class="c"># One or more upstream URLs</span>
+  <span class="s">"http://10.0.0.1:3000"</span>,
+  <span class="s">"http://10.0.0.2:3000"</span>,
+  <span class="s">"h2c://10.0.0.3:3000"</span>,        <span class="c"># HTTP/2 cleartext (multiplexed)</span>
+]
+
+<span class="c"># Load balancing</span>
+<span class="k">balance</span> = <span class="s">"round_robin"</span>          <span class="c"># round_robin | least_conn | least_latency</span>
+                                 <span class="c"># consistent_hash | peak_ewma | p2c</span>
+
+<span class="c"># Health checks</span>
+<span class="k">health_path</span> = <span class="s">"/healthz"</span>         <span class="c"># Endpoint to poll (default: /healthz)</span>
+<span class="k">health_interval</span> = <span class="v">10</span>             <span class="c"># Poll interval in seconds (1-3600)</span>
+
+<span class="c"># Circuit breaker</span>
+<span class="k">circuit_break_threshold</span> = <span class="v">5</span>      <span class="c"># Consecutive failures before open (default: 5)</span>
+<span class="k">circuit_break_duration</span> = <span class="v">30</span>      <span class="c"># Seconds before half-open retry (default: 30)</span>
+<span class="k">max_conns</span> = <span class="v">0</span>                    <span class="c"># Max concurrent connections per backend (0 = unlimited)</span>
+
+<span class="c"># IP allowlist</span>
+<span class="k">ip_allowlist</span> = <span class="s">"10.0.0.0/8, 192.168.0.0/16"</span>  <span class="c"># Comma-separated CIDRs</span>
+<span class="k">ip_allowlist_deny</span> = <span class="s">"403"</span>        <span class="c"># "403" or "drop" (TCP RST)</span>
+
+<span class="c"># gRPC streaming</span>
+<span class="k">protocol</span> = <span class="s">"http"</span>                <span class="c"># "http" | "grpc"</span>
+<span class="k">grpc_bind</span> = <span class="s">"0.0.0.0:9000"</span>      <span class="c"># Dedicated gRPC listener (required when protocol = "grpc")</span></code></pre>
+
+<h4>Backend URL schemes</h4>
+<ul>
+  <li><code>http://</code> &mdash; HTTP/1.1 cleartext</li>
+  <li><code>https://</code> &mdash; HTTP/1.1 over TLS</li>
+  <li><code>h2c://</code> &mdash; HTTP/2 cleartext with multiplexed streams, streaming flow control, and GOAWAY retry</li>
+</ul>
+</section>
+
+<!-- Routes -->
+<section id="routes">
+<h2>Routes</h2>
+
+<p>A route matches requests by host and/or path and forwards them to a service. Middleware is configured per-route.</p>
+
+<pre><code><span class="h">[[route]]</span>
+<span class="k">host</span> = <span class="s">"api.example.com"</span>         <span class="c"># Match by Host header (optional)</span>
+<span class="k">path</span> = <span class="s">"/v1"</span>                     <span class="c"># Match by path prefix (optional)</span>
+<span class="k">service</span> = <span class="s">"api"</span>                  <span class="c"># Target service (required)</span>
+<span class="k">listener</span> = <span class="s">"https"</span>               <span class="c"># Restrict to named listener (optional)</span>
+<span class="k">weight</span> = <span class="v">10</span>                      <span class="c"># Explicit priority (higher wins, default: 0)</span>
+
+<span class="c"># Logging</span>
+<span class="k">log</span> = <span class="v">true</span>                       <span class="c"># Enable request logging</span>
+<span class="k">log_json</span> = <span class="v">true</span>                  <span class="c"># JSON output format</span>
+
+<span class="c"># Security</span>
+<span class="k">rate_limit_rps</span> = <span class="v">100</span>             <span class="c"># Max requests/sec per IP (0 = unlimited)</span>
+<span class="k">ip_allowlist</span> = <span class="s">"10.0.0.0/8"</span>     <span class="c"># CIDR access control</span>
+<span class="k">ip_allowlist_deny</span> = <span class="s">"403"</span>        <span class="c"># "403" or "drop"</span>
+<span class="k">hsts</span> = <span class="v">true</span>                      <span class="c"># Strict-Transport-Security header</span>
+<span class="k">hsts_max_age</span> = <span class="v">63072000</span>          <span class="c"># Max-age in seconds (default: 2 years)</span>
+<span class="k">hsts_subdomains</span> = <span class="v">true</span>           <span class="c"># includeSubDomains directive</span>
+<span class="k">hsts_preload</span> = <span class="v">false</span>             <span class="c"># preload (requires subdomains + max_age >= 1 year)</span>
+
+<span class="c"># Headers</span>
+<span class="k">cors_origins</span> = <span class="s">"*"</span>               <span class="c"># CORS allowed origins</span>
+<span class="k">add_header</span> = <span class="s">"X-Proxy"</span>           <span class="c"># Custom response header name</span>
+<span class="k">add_header_value</span> = <span class="s">"zpx"</span>         <span class="c"># Custom response header value</span>
+
+<span class="c"># Content</span>
+<span class="k">compress</span> = <span class="v">true</span>                  <span class="c"># Response compression (br/zstd/gzip)</span>
+
+<span class="c"># WebSocket</span>
+<span class="k">ws_allowed_origins</span> = <span class="s">"https://app.example.com"</span>  <span class="c"># Restrict WS upgrade origins</span>
+
+<span class="c"># Mirroring</span>
+<span class="k">mirror</span> = <span class="s">"http://shadow:3000"</span>    <span class="c"># Mirror traffic URL (optional)</span>
+<span class="k">mirror_percent</span> = <span class="v">50</span>              <span class="c"># Percentage to mirror (default: 100)</span></code></pre>
+
+<h4>Routing priority</h4>
+<ol>
+  <li>Explicit <code>weight</code> (higher wins)</li>
+  <li>Specificity score: host match (2 pts) + path match (1 pt)</li>
+  <li>First match in config order</li>
+</ol>
+
+<p>Host and path values prefixed with <code>~</code> use POSIX ERE regex: <code>host = "~^.*\.example\.com$"</code>.</p>
+</section>
+
+<!-- Includes -->
+<section id="includes">
+<h2>Config Includes</h2>
+
+<pre><code><span class="k">include</span> = <span class="s">"conf.d/*.toml"</span></code></pre>
+
+<p>Included files can contain <code>[[service]]</code> and <code>[[route]]</code> sections. Glob patterns support <code>*</code> wildcards. Paths are relative to the main config directory. Files in <code>config.d/*.toml</code> are always loaded if the directory exists.</p>
+</section>
+
+<!-- ACME -->
+<section id="acme">
+<h2>ACME &mdash; Automatic TLS</h2>
+
+<p>zpx integrates with <a href="https://github.com/acmesh-official/acme.sh">acme.sh</a> to provision and renew TLS certificates from Let's Encrypt / ZeroSSL.</p>
+
+<h3>Prerequisites</h3>
+<pre><code>curl https://get.acme.sh | sh</code></pre>
+
+<h3>HTTP-01 Challenge</h3>
+<p>For single-domain certs. zpx serves the challenge files automatically.</p>
+<pre><code><span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>
+<span class="k">acme_domain</span> = [<span class="s">"example.com"</span>]
+<span class="k">acme_email</span> = <span class="s">"you@example.com"</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"https"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"http"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
+<span class="k">tls</span> = <span class="v">false</span></code></pre>
+
+<h3>DNS-01 Challenge (Wildcard)</h3>
+<p>For wildcard certificates. Supports <a href="https://github.com/acmesh-official/acme.sh/wiki/dnsapi">90+ DNS providers</a>.</p>
+<pre><code><span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
+<span class="k">acme_domain</span> = [<span class="s">"*.example.com"</span>, <span class="s">"example.com"</span>]
+<span class="k">acme_email</span> = <span class="s">"you@example.com"</span>
+<span class="k">acme_dns_provider</span> = <span class="s">"dns_cf"</span>
+<span class="k">acme_dns_credentials</span> = [
+  <span class="s">"CF_Key=your_api_key_here"</span>,
+  <span class="s">"CF_Email=you@example.com"</span>,
+]
+<span class="k">acme_data_dir</span> = <span class="s">"/etc/zpx/acme"</span>
+
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"https"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span></code></pre>
+
+<h3>How It Works</h3>
+<ol>
+  <li><strong>On startup</strong> &mdash; zpx runs <code>acme.sh --issue</code> to obtain certs, then <code>--install-cert</code> to copy them to <code>{acme_data_dir}/certs/</code></li>
+  <li><strong>Every 12 hours</strong> &mdash; a background thread runs <code>acme.sh --renew</code> and atomically hot-reloads the TLS certificate if renewed</li>
+  <li><strong>Zero downtime</strong> &mdash; existing connections keep the old cert, new connections get the fresh one</li>
+</ol>
+
+<h3>ACME Config Reference</h3>
+<table>
+  <thead><tr><th>Field</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>acme_domain</code></td><td><code>[]</code></td><td>Domains to provision (triggers ACME when non-empty)</td></tr>
+    <tr><td><code>acme_email</code></td><td>&mdash;</td><td>Account email for the ACME provider</td></tr>
+    <tr><td><code>acme_data_dir</code></td><td><code>/etc/zpx/acme</code></td><td>Where acme.sh stores state and certs are installed</td></tr>
+    <tr><td><code>acme_dns_provider</code></td><td>&mdash;</td><td>DNS provider for DNS-01 (e.g. <code>dns_cf</code>, <code>dns_aws</code>, <code>dns_gd</code>)</td></tr>
+    <tr><td><code>acme_dns_credentials</code></td><td><code>[]</code></td><td>Provider credentials as <code>KEY=value</code> pairs</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- Docker -->
+<section id="docker">
+<h2>Docker Discovery</h2>
+
+<p>zpx auto-discovers containers via Docker socket labels.</p>
+
+<h3>Container Labels</h3>
+<p>Labels use a namespaced format: <code>zpx.service.&lt;name&gt;.&lt;field&gt;</code> and <code>zpx.route.&lt;name&gt;.&lt;field&gt;</code>. A single container can expose multiple services and routes.</p>
+
+<h4>Minimal</h4>
+<p>zpx infers the backend from the container's IP and exposed port:</p>
+<pre><code><span class="c"># docker-compose.yml</span>
+<span class="k">services</span>:
+  <span class="k">myapp</span>:
+    <span class="k">image</span>: <span class="s">myapp:latest</span>
+    <span class="k">ports</span>:
+      - <span class="s">"3000:3000"</span>
+    <span class="k">labels</span>:
+      <span class="k">zpx.enable</span>: <span class="s">"true"</span>
+      <span class="k">zpx.route.myapp.host</span>: <span class="s">"`example.com`"</span></code></pre>
+
+<h4>Full example</h4>
+<pre><code><span class="k">services</span>:
+  <span class="k">myapp</span>:
+    <span class="k">image</span>: <span class="s">myapp:latest</span>
+    <span class="k">labels</span>:
+      <span class="k">zpx.enable</span>: <span class="s">"true"</span>
+      <span class="k">zpx.service.api.port</span>: <span class="s">"8080"</span>
+      <span class="k">zpx.service.admin.url</span>: <span class="s">"`http://10.0.0.5:9090`"</span>
+      <span class="k">zpx.service.api.health_path</span>: <span class="s">"/health"</span>
+      <span class="k">zpx.route.main.host</span>: <span class="s">"`example.com`"</span>
+      <span class="k">zpx.route.main.path</span>: <span class="s">"`/api`"</span>
+      <span class="k">zpx.route.main.service</span>: <span class="s">"api"</span>
+      <span class="k">zpx.route.wild.host</span>: <span class="s">"`~^.*\\.example\\.com$`"</span></code></pre>
+
+<h4>Service labels</h4>
+<p><code>zpx.service.&lt;name&gt;.*</code></p>
+<table>
+  <thead><tr><th>Field</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>port</code></td><td>Container port (builds <code>http://{container_ip}:{port}</code>)</td></tr>
+    <tr><td><code>url</code></td><td>Explicit backend URL</td></tr>
+    <tr><td><code>health_path</code></td><td>Health check path (default: <code>/healthz</code>)</td></tr>
+  </tbody>
+</table>
+
+<p>When neither <code>port</code> nor <code>url</code> is set, zpx uses the container's IP and first exposed TCP port.</p>
+
+<h4>Route labels</h4>
+<p><code>zpx.route.&lt;name&gt;.*</code></p>
+<table>
+  <thead><tr><th>Field</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>host</code></td><td>Host matching &mdash; exact or regex with <code>~</code> prefix</td></tr>
+    <tr><td><code>path</code></td><td>Path matching &mdash; prefix or regex with <code>~</code> prefix</td></tr>
+    <tr><td><code>service</code></td><td>Target service name (defaults to the route's own name)</td></tr>
+  </tbody>
+</table>
+
+<p>Wrap values in backticks to prevent YAML escaping issues. Prefix with <code>~</code> for POSIX ERE regex.</p>
+</section>
+
+<!-- Dashboard -->
+<section id="dashboard">
+<h2>Admin Dashboard</h2>
+
+<pre><code><span class="h">[server]</span>
+<span class="k">admin_bind</span> = <span class="s">"127.0.0.1:9090"</span>
+<span class="k">admin_insecure</span> = <span class="v">true</span></code></pre>
+
+<p>Open <code>http://localhost:9090/_zpx/</code> to view:</p>
+<ul>
+  <li>Request rate and error percentage with sparkline history</li>
+  <li>p50/p99 latency with sparkline history</li>
+  <li>Status code distribution (2xx/3xx/4xx/5xx)</li>
+  <li>Backend health per service with circuit breaker state</li>
+  <li>Route table with active middleware</li>
+</ul>
+
+<p>The dashboard uses WebSocket for live updates. Token auth stores credentials in localStorage.</p>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /_zpx/</code></td><td>Dashboard HTML</td></tr>
+    <tr><td><code>GET /_zpx/ws</code></td><td>WebSocket metrics feed</td></tr>
+    <tr><td><code>GET /_zpx/api/config</code></td><td>JSON config snapshot</td></tr>
+  </tbody>
+</table>
+
+<p>All endpoints require <code>Authorization: Bearer &lt;token&gt;</code> when <code>admin_token</code> is set.</p>
+</section>
+
+<!-- Architecture -->
+<section id="architecture">
+<h2>Architecture</h2>
+
+<div class="arch">                       Internet
+                          |
+         .----------------+----------------.
+         |                |                |
+   [[listener]]     [[listener]]     [[listener]]
+    :443 TLS         :8443 TLS       :80 plain
+         |                |                |
+         '--------.-------'                |
+                  |                        |
+            TLS 1.3 + ALPN                 |
+            (tls.zig + kTLS)               |
+                  |                        |
+           .------+------.                 |
+           |              |                |
+      h2 (ALPN)    h1 (ALPN)              |
+      nghttp2      raw shuttle ------.    |
+           |                         |    |
+      H2 Worker Pool                 |    |
+      (CPU-pinned,                   |    |
+       epoll per worker)             |    |
+           |                         |    |
+      per-stream                     '----+-----.
+      HTTP/1.1                                  |
+      to httpz                            httpz server
+                                        (bind = :8080)
+                                               |
+                                     .---------+---------.
+                                     |                   |
+                                  Router              ACME
+                                host + path        challenge
+                               + listener          handler
+                               + weight
+                                     |
+                              .------+------.
+                              |             |
+                         Middleware     WS / gRPC
+                        - Rate limit    proxy
+                        - IP allowlist
+                        - CORS / HSTS
+                        - Compression
+                        - Headers
+                        - Logging
+                              |
+                    .---------+---------.
+                    |         |         |
+               http://    h2c://    https://
+               backend    backend   backend
+                    |         |         |
+                  H1 conn  Muxed H2  H1+TLS
+                  pool     streams   conn</div>
+
+<h3>Design</h3>
+<ul>
+  <li><strong>Named listeners</strong> &mdash; each <code>[[listener]]</code> binds a port, either TLS or plain. TLS listeners negotiate ALPN (h2 or http/1.1). Plain listeners shuttle bytes to httpz without TLS overhead. Routes can target a specific listener by name.</li>
+  <li><strong>H2 worker pool</strong> &mdash; N CPU-pinned threads (N = CPU count, max 32), each with its own epoll fd. TLS accept hands off h2 connections via a bounded pending queue with eventfd wakeup. Epoll uses 3-way pointer tagging to distinguish client sockets, h1 upstream, and h2c upstream.</li>
+  <li><strong>kTLS offload</strong> &mdash; after TLS handshake, cipher keys are pushed to the kernel via <code>setsockopt</code>. Subsequent encrypt/decrypt happens in kernel space, avoiding userspace copies.</li>
+  <li><strong>h2c multiplexed upstream</strong> &mdash; <code>h2c://</code> backends use HTTP/2 cleartext with streaming flow control, 1 MB connection windows, and GOAWAY graceful migration (REFUSED_STREAM retries on fresh connections).</li>
+  <li><strong>Service/route separation</strong> &mdash; services define backend pools (balancing, health, circuit breakers). Routes define matching and middleware. Multiple routes can share a service.</li>
+  <li><strong>Atomic cert swap</strong> &mdash; TLS certificate reload is lock-free. <code>AuthRef</code> is ref-counted; the accept loop atomically loads the current pointer for each new connection.</li>
+  <li><strong>Ref-counted hot reload</strong> &mdash; <code>SIGHUP</code> swaps the entire routing table atomically. Old state is freed after all in-flight requests complete.</li>
+  <li><strong>Specificity routing</strong> &mdash; routes scored by host (2 pts) + path (1 pt), with explicit <code>weight</code> override. POSIX ERE regex supported.</li>
+  <li><strong>Content negotiation</strong> &mdash; compression negotiates <code>Accept-Encoding</code> with q-value parsing, preferring brotli &gt; zstd &gt; gzip.</li>
+</ul>
+</section>
+
+<!-- Building -->
+<section id="building">
+<h2>Building</h2>
+
+<p><strong>Requirements:</strong> Zig 0.16-dev (master)</p>
+
+<pre><code><span class="c"># Debug build</span>
+zig build
+
+<span class="c"># Release build</span>
+zig build -Doptimize=ReleaseFast
+
+<span class="c"># Run tests</span>
+zig build test --summary all
+
+<span class="c"># Validate config</span>
+zig build run -- validate zpx.toml
+
+<span class="c"># Cross-compile</span>
+zig build -Doptimize=ReleaseFast -Dtarget=x86_64-linux-musl
+zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
+
+<h3>Dependencies</h3>
+<p>All vendored &mdash; no network fetches at build time (except <code>zig-toml</code>).</p>
+
+<table>
+  <thead><tr><th>Dependency</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://github.com/karlseguin/http.zig">httpz</a></td><td>HTTP server</td></tr>
+    <tr><td><a href="https://github.com/ianic/tls.zig">tls.zig</a></td><td>TLS 1.3 implementation</td></tr>
+    <tr><td><a href="https://github.com/sam701/zig-toml">zig-toml</a></td><td>TOML config parsing</td></tr>
+    <tr><td><a href="https://nghttp2.org/">nghttp2</a> v1.64.0</td><td>HTTP/2 framing (C library)</td></tr>
+    <tr><td><a href="https://github.com/google/brotli">brotli</a> v1.1.0</td><td>Brotli compression (C library)</td></tr>
+    <tr><td><a href="https://github.com/facebook/zstd">zstd</a> v1.5.7</td><td>Zstandard compression (C library)</td></tr>
+  </tbody>
+</table>
+
+<h3>Signals</h3>
+<table>
+  <thead><tr><th>Signal</th><th>Behavior</th></tr></thead>
+  <tbody>
+    <tr><td><code>SIGINT</code> / <code>SIGTERM</code></td><td>Drain connections and shut down</td></tr>
+    <tr><td><code>SIGHUP</code></td><td>Reload config, routes, services, pools, rate limiters, IP allowlists, and TLS certs</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- Full Example -->
+<section id="example">
+<h2>Full Example</h2>
+
+<pre><code><span class="k">include</span> = <span class="s">"conf.d/*.toml"</span>
+
+<span class="h">[server]</span>
+<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
+<span class="k">workers</span> = <span class="v">8</span>
+<span class="k">proxy_timeout</span> = <span class="v">30</span>
+<span class="k">admin_bind</span> = <span class="s">"127.0.0.1:9090"</span>
+<span class="k">admin_token</span> = <span class="s">"change-me"</span>
+
+<span class="c"># Automatic TLS via Cloudflare DNS</span>
+<span class="k">acme_domain</span> = [<span class="s">"*.example.com"</span>, <span class="s">"example.com"</span>]
+<span class="k">acme_email</span> = <span class="s">"admin@example.com"</span>
+<span class="k">acme_dns_provider</span> = <span class="s">"dns_cf"</span>
+<span class="k">acme_dns_credentials</span> = [
+  <span class="s">"CF_Key=your_cloudflare_api_key"</span>,
+  <span class="s">"CF_Email=admin@example.com"</span>,
+]
+
+<span class="h">[docker]</span>
+<span class="k">enabled</span> = <span class="v">true</span>
+
+<span class="c"># TLS listener (public)</span>
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"https"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span>
+
+<span class="c"># Plain listener for HTTP-&gt;HTTPS redirects and ACME challenges</span>
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"http"</span>
+<span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
+<span class="k">tls</span> = <span class="v">false</span>
+
+<span class="c"># API backends — h2c multiplexed, load balanced</span>
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"api"</span>
+<span class="k">backends</span> = [
+  <span class="s">"h2c://10.0.0.1:3000"</span>,
+  <span class="s">"h2c://10.0.0.2:3000"</span>,
+]
+<span class="k">balance</span> = <span class="s">"peak_ewma"</span>
+<span class="k">health_path</span> = <span class="s">"/healthz"</span>
+<span class="k">health_interval</span> = <span class="v">10</span>
+
+<span class="c"># Frontend backend</span>
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"frontend"</span>
+<span class="k">backends</span> = [<span class="s">"http://10.0.0.5:8080"</span>]
+<span class="k">balance</span> = <span class="s">"least_latency"</span>
+<span class="k">circuit_break_threshold</span> = <span class="v">3</span>
+<span class="k">circuit_break_duration</span> = <span class="v">15</span>
+
+<span class="c"># gRPC backend</span>
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"grpc-svc"</span>
+<span class="k">protocol</span> = <span class="s">"grpc"</span>
+<span class="k">grpc_bind</span> = <span class="s">"0.0.0.0:9000"</span>
+<span class="k">backends</span> = [<span class="s">"http://10.0.0.10:50051"</span>]
+
+<span class="c"># Catch-all</span>
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"default"</span>
+<span class="k">backends</span> = [<span class="s">"http://localhost:9000"</span>]
+
+<span class="c"># API — rate limited, CORS, compressed, HSTS, logged</span>
+<span class="h">[[route]]</span>
+<span class="k">host</span> = <span class="s">"api.example.com"</span>
+<span class="k">path</span> = <span class="s">"/v1"</span>
+<span class="k">service</span> = <span class="s">"api"</span>
+<span class="k">listener</span> = <span class="s">"https"</span>
+<span class="k">rate_limit_rps</span> = <span class="v">500</span>
+<span class="k">cors_origins</span> = <span class="s">"https://app.example.com"</span>
+<span class="k">compress</span> = <span class="v">true</span>
+<span class="k">hsts</span> = <span class="v">true</span>
+<span class="k">log</span> = <span class="v">true</span>
+<span class="k">log_json</span> = <span class="v">true</span>
+<span class="k">mirror</span> = <span class="s">"http://shadow.internal:3000"</span>
+<span class="k">mirror_percent</span> = <span class="v">10</span>
+
+<span class="c"># Frontend — compressed with HSTS</span>
+<span class="h">[[route]]</span>
+<span class="k">host</span> = <span class="s">"app.example.com"</span>
+<span class="k">service</span> = <span class="s">"frontend"</span>
+<span class="k">compress</span> = <span class="v">true</span>
+<span class="k">hsts</span> = <span class="v">true</span>
+
+<span class="c"># gRPC</span>
+<span class="h">[[route]]</span>
+<span class="k">service</span> = <span class="s">"grpc-svc"</span>
+
+<span class="c"># Catch-all</span>
+<span class="h">[[route]]</span>
+<span class="k">path</span> = <span class="s">"/"</span>
+<span class="k">service</span> = <span class="s">"default"</span></code></pre>
+</section>
+
+<footer style="text-align:center; padding: 2rem 0; color: var(--text-dim); font-size: 0.85rem; border-top: 1px solid var(--border); margin-top: 2rem;">
+  Built with <a href="https://ziglang.org" style="color: var(--accent);">Zig</a> &mdash; no garbage collector, no runtime, no compromises.
+</footer>
+
+</main>
+
+<script>
+// Highlight active nav link on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav ul li a');
+
+function updateActive() {
+  const scrollY = window.scrollY + 100;
+  let current = '';
+  for (const section of sections) {
+    if (section.offsetTop <= scrollY) current = section.id;
+  }
+  for (const link of navLinks) {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+  }
+}
+
+window.addEventListener('scroll', updateActive, { passive: true });
+updateActive();
+</script>
+</body>
+</html>
