@@ -792,7 +792,8 @@ graph TD
     WP["H2 Worker Pool<br/>CPU-pinned, epoll per worker"]
     H2 --> WP
 
-    WP -- "per-stream HTTP/1.1" --> HTTPZ
+    WP -- "per-stream loopback" --> HTTPZ
+    WP -- "direct h2c" --> B2
     H1 --> HTTPZ
     L3 --> HTTPZ
 
