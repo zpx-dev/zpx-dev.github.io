@@ -275,20 +275,11 @@ td {
 
 tr:last-child td { border-bottom: none; }
 
-/* ── Architecture diagram ── */
+/* ── Mermaid diagrams ── */
 
-.arch {
-  background: var(--bg-code);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1.25rem 1.5rem;
-  overflow-x: auto;
-  margin: 0.75rem 0 1.25rem;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--text-dim);
-  white-space: pre;
+.mermaid {
+  margin: 1rem 0 1.5rem;
+  text-align: center;
 }
 
 /* ── Feature grid ── */
@@ -777,56 +768,67 @@ EOF
 <section id="architecture">
 <h2>Architecture</h2>
 
-<div class="arch">                       Internet
-                          |
-         .----------------+----------------.
-         |                |                |
-   [[listener]]     [[listener]]     [[listener]]
-    :443 TLS         :8443 TLS       :80 plain
-         |                |                |
-         '--------.-------'                |
-                  |                        |
-            TLS 1.3 + ALPN                 |
-            (tls.zig + kTLS)               |
-                  |                        |
-           .------+------.                 |
-           |              |                |
-      h2 (ALPN)    h1 (ALPN)              |
-      nghttp2      raw shuttle ------.    |
-           |                         |    |
-      H2 Worker Pool                 |    |
-      (CPU-pinned,                   |    |
-       epoll per worker)             |    |
-           |                         |    |
-      per-stream                     '----+-----.
-      HTTP/1.1                                  |
-      to httpz                            httpz server
-                                        (bind = :8080)
-                                               |
-                                     .---------+---------.
-                                     |                   |
-                                  Router              ACME
-                                host + path        challenge
-                               + listener          handler
-                               + weight
-                                     |
-                              .------+------.
-                              |             |
-                         Middleware     WS / gRPC
-                        - Rate limit    proxy
-                        - IP allowlist
-                        - CORS / HSTS
-                        - Compression
-                        - Headers
-                        - Logging
-                              |
-                    .---------+---------.
-                    |         |         |
-               http://    h2c://    https://
-               backend    backend   backend
-                    |         |         |
-                  H1 conn  Muxed H2  H1+TLS
-                  pool     streams   conn</div>
+<pre class="mermaid">
+graph TD
+    Internet((Internet))
+
+    L1["[[listener]] :443 TLS"]
+    L2["[[listener]] :8443 TLS"]
+    L3["[[listener]] :80 plain"]
+
+    Internet --> L1
+    Internet --> L2
+    Internet --> L3
+
+    TLS["TLS 1.3 + ALPN\n(tls.zig + kTLS)"]
+    L1 --> TLS
+    L2 --> TLS
+
+    H2["h2 (ALPN)\nnghttp2"]
+    H1["h1 (ALPN)\nraw shuttle"]
+    TLS --> H2
+    TLS --> H1
+
+    WP["H2 Worker Pool\nCPU-pinned, epoll per worker"]
+    H2 --> WP
+
+    WP -- "per-stream HTTP/1.1" --> HTTPZ
+    H1 --> HTTPZ
+    L3 --> HTTPZ
+
+    HTTPZ["httpz server\n(bind = :8080)"]
+
+    Router["Router\nhost + path + listener + weight"]
+    ACME["ACME challenge\nhandler"]
+    HTTPZ --> Router
+    HTTPZ --> ACME
+
+    MW["Middleware\nRate limit · IP allowlist\nCORS · HSTS · Compression\nHeaders · Logging"]
+    WS["WS / gRPC\nproxy"]
+    Router --> MW
+    Router --> WS
+
+    B1["http:// backend\nH1 conn pool"]
+    B2["h2c:// backend\nMuxed H2 streams"]
+    B3["https:// backend\nH1+TLS conn"]
+    MW --> B1
+    MW --> B2
+    MW --> B3
+
+    classDef listener fill:#1c2129,stroke:#f7a41d,color:#f7a41d,stroke-width:2px
+    classDef tls fill:#1c2129,stroke:#bc8cff,color:#bc8cff,stroke-width:2px
+    classDef server fill:#1c2129,stroke:#58a6ff,color:#58a6ff,stroke-width:2px
+    classDef middleware fill:#1c2129,stroke:#3fb950,color:#3fb950,stroke-width:2px
+    classDef backend fill:#1c2129,stroke:#8b949e,color:#e6edf3,stroke-width:1px
+    classDef internet fill:#1c2129,stroke:#e6edf3,color:#e6edf3,stroke-width:2px
+
+    class Internet internet
+    class L1,L2,L3 listener
+    class TLS,H2,H1,WP tls
+    class HTTPZ,Router,ACME server
+    class MW,WS middleware
+    class B1,B2,B3 backend
+</pre>
 
 <h3>Design</h3>
 <ul>
@@ -993,6 +995,24 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 </footer>
 
 </main>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    darkMode: true,
+    background: '#0e1117',
+    primaryColor: '#1c2129',
+    primaryTextColor: '#e6edf3',
+    primaryBorderColor: '#30363d',
+    lineColor: '#8b949e',
+    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif',
+    fontSize: '14px',
+  },
+});
+</script>
 
 <script>
 // Highlight active nav link on scroll
