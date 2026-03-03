@@ -792,8 +792,12 @@ graph TD
     WP["H2 Worker Pool<br/>CPU-pinned, epoll per worker"]
     H2 --> WP
 
-    WP -- "per-stream loopback" --> HTTPZ
-    WP -- "direct h2c" --> B2
+    H2MW["Inline Middleware<br/>Rate limit · IP allowlist · CORS"]
+    WP --> H2MW
+
+    H2MW --> B1
+    H2MW --> B2
+
     H1 --> HTTPZ
     L3 --> HTTPZ
 
@@ -827,7 +831,7 @@ graph TD
     class L1,L2,L3 listener
     class TLS,H2,H1,WP tls
     class HTTPZ,Router,ACME server
-    class MW,WS middleware
+    class H2MW,MW,WS middleware
     class B1,B2,B3 backend
 </pre>
 
