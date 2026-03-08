@@ -442,6 +442,7 @@ EOF
   <div class="feat"><strong>Docker Discovery</strong><span>Auto-discover containers via Docker socket labels</span></div>
   <div class="feat"><strong>WebSocket Proxy</strong><span>Transparent upgrade and bidirectional proxying with origin filtering</span></div>
   <div class="feat"><strong>gRPC Streaming</strong><span>TCP-level proxy on a dedicated listener per gRPC service</span></div>
+  <div class="feat"><strong>Canary Deployments</strong><span>Route a percentage of traffic to a canary service for safe rollouts</span></div>
   <div class="feat"><strong>Request Mirroring</strong><span>Fire-and-forget traffic mirroring with percentage sampling. H2 mirrors full body; H1 mirrors body up to 1 MB</span></div>
   <div class="feat"><strong>Rate Limiting</strong><span>Per-route token-bucket by client IP</span></div>
   <div class="feat"><strong>IP Allowlist</strong><span>Per-route and per-service CIDR access control (403 or TCP drop)</span></div>
@@ -587,9 +588,15 @@ EOF
 <span class="c"># WebSocket</span>
 <span class="k">ws_allowed_origins</span> = <span class="s">"https://app.example.com"</span>  <span class="c"># Restrict WS upgrade origins</span>
 
+<span class="c"># Canary</span>
+<span class="k">canary_service</span> = <span class="s">"api-canary"</span>    <span class="c"># Route % of traffic to a different service</span>
+<span class="k">canary_percent</span> = <span class="v">10</span>              <span class="c"># Percentage routed to canary (0-100, default: 0)</span>
+
 <span class="c"># Mirroring</span>
 <span class="k">mirror</span> = <span class="s">"http://shadow:3000"</span>    <span class="c"># Mirror traffic URL (optional)</span>
 <span class="k">mirror_percent</span> = <span class="v">50</span>              <span class="c"># Percentage to mirror (default: 100)</span></code></pre>
+
+<p><strong>Canary:</strong> Routes a percentage of traffic to a different service. Each request rolls independently &mdash; <code>canary_percent = 10</code> means ~10% of requests go to <code>canary_service</code>, the rest go to <code>service</code>. Both services get full health checks, circuit breakers, and load balancing. Reloadable via <code>SIGHUP</code>.</p>
 
 <p><strong>Mirroring:</strong> Fire-and-forget &mdash; the mirror request is sent in a detached thread and does not affect primary request latency. H2 always mirrors the full request body. H1 mirrors the body only when Content-Length is 1 MB or less; larger or chunked bodies are mirrored without body content.</p>
 
@@ -983,6 +990,12 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">health_path</span> = <span class="s">"/healthz"</span>
 <span class="k">health_interval</span> = <span class="v">10</span>
 
+<span class="c"># API canary — new version under test</span>
+<span class="h">[[service]]</span>
+<span class="k">name</span> = <span class="s">"api-canary"</span>
+<span class="k">backends</span> = [<span class="s">"h2c://10.0.0.3:3000"</span>]
+<span class="k">balance</span> = <span class="s">"round_robin"</span>
+
 <span class="c"># Frontend backend</span>
 <span class="h">[[service]]</span>
 <span class="k">name</span> = <span class="s">"frontend"</span>
@@ -1003,7 +1016,7 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">name</span> = <span class="s">"default"</span>
 <span class="k">backends</span> = [<span class="s">"http://localhost:9000"</span>]
 
-<span class="c"># API — rate limited, CORS, compressed, HSTS, logged</span>
+<span class="c"># API — rate limited, CORS, compressed, HSTS, logged, canary</span>
 <span class="h">[[route]]</span>
 <span class="k">host</span> = <span class="s">"api.example.com"</span>
 <span class="k">path</span> = <span class="s">"/v1"</span>
@@ -1015,6 +1028,8 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">hsts</span> = <span class="v">true</span>
 <span class="k">log</span> = <span class="v">true</span>
 <span class="k">log_json</span> = <span class="v">true</span>
+<span class="k">canary_service</span> = <span class="s">"api-canary"</span>
+<span class="k">canary_percent</span> = <span class="v">10</span>
 <span class="k">mirror</span> = <span class="s">"http://shadow.internal:3000"</span>
 <span class="k">mirror_percent</span> = <span class="v">10</span>
 
