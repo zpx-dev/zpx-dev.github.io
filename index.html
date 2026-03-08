@@ -453,7 +453,10 @@ EOF
   <div class="feat"><strong>Logging</strong><span>Per-route request/response logging in text or JSON</span></div>
   <div class="feat"><strong>Custom Headers</strong><span>Inject response headers per route</span></div>
   <div class="feat"><strong>Smart Routing</strong><span>Host + path with specificity scoring, weights, listener filtering, POSIX regex</span></div>
-  <div class="feat"><strong>Retry</strong><span>Auto-retry GET/HEAD/OPTIONS on connection failure</span></div>
+  <div class="feat"><strong>Retry</strong><span>Auto-retry on connection failure and 502/503 status. Configurable per-route</span></div>
+  <div class="feat"><strong>Path Stripping</strong><span>Strip a path prefix before proxying to backends (/api/users &rarr; /users)</span></div>
+  <div class="feat"><strong>HTTP&rarr;HTTPS Redirect</strong><span>Automatic 301 redirect from plain listeners with redirect_https</span></div>
+  <div class="feat"><strong>Forward Auth</strong><span>Delegate authentication to an external service before proxying</span></div>
   <div class="feat"><strong>Graceful Shutdown</strong><span>SIGINT/SIGTERM drains connections before exit</span></div>
   <div class="feat"><strong>Admin Dashboard</strong><span>Real-time metrics with WebSocket push and token auth</span></div>
   <div class="feat"><strong>Tracing</strong><span>Auto-injects W3C traceparent when missing</span></div>
@@ -499,7 +502,8 @@ EOF
 <span class="h">[[listener]]</span>
 <span class="k">name</span> = <span class="s">"http"</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
-<span class="k">tls</span> = <span class="v">false</span>                       <span class="c"># Plain HTTP (no TLS)</span></code></pre>
+<span class="k">tls</span> = <span class="v">false</span>                       <span class="c"># Plain HTTP (no TLS)</span>
+<span class="k">redirect_https</span> = <span class="v">true</span>             <span class="c"># 301 redirect to HTTPS (plain listeners only)</span></code></pre>
 
 <p>TLS listeners terminate TLS 1.3 with ALPN negotiation. HTTP/2 connections use nghttp2 framing; HTTP/1.1 connections use a zero-copy proxy path. Both go through the same CPU-pinned worker pool. Plain listeners handle HTTP/1.1 directly without TLS &mdash; useful for ACME HTTP-01 challenges and redirects.</p>
 
@@ -594,11 +598,26 @@ EOF
 
 <span class="c"># Mirroring</span>
 <span class="k">mirror</span> = <span class="s">"http://shadow:3000"</span>    <span class="c"># Mirror traffic URL (optional)</span>
-<span class="k">mirror_percent</span> = <span class="v">50</span>              <span class="c"># Percentage to mirror (default: 100)</span></code></pre>
+<span class="k">mirror_percent</span> = <span class="v">50</span>              <span class="c"># Percentage to mirror (default: 100)</span>
+
+<span class="c"># Path rewriting</span>
+<span class="k">strip_prefix</span> = <span class="s">"/api"</span>            <span class="c"># Strip prefix before proxying (e.g. /api/users → /users)</span>
+
+<span class="c"># Retry</span>
+<span class="k">retry_attempts</span> = <span class="v">2</span>               <span class="c"># Retry on 502/503 (0-10, default: 0)</span>
+
+<span class="c"># Forward auth</span>
+<span class="k">forward_auth</span> = <span class="s">"http://auth:9000/verify"</span>  <span class="c"># Auth service URL (2xx = allow, else deny)</span></code></pre>
 
 <p><strong>Canary:</strong> Routes a percentage of traffic to a different service. Each request rolls independently &mdash; <code>canary_percent = 10</code> means ~10% of requests go to <code>canary_service</code>, the rest go to <code>service</code>. Both services get full health checks, circuit breakers, and load balancing. Reloadable via <code>SIGHUP</code>.</p>
 
 <p><strong>Mirroring:</strong> Fire-and-forget &mdash; the mirror request is sent in a detached thread and does not affect primary request latency. H2 always mirrors the full request body. H1 mirrors the body only when Content-Length is 1 MB or less; larger or chunked bodies are mirrored without body content.</p>
+
+<p><strong>Path stripping:</strong> Removes a path prefix before forwarding to the backend. <code>/api/users</code> with <code>strip_prefix = "/api"</code> becomes <code>/users</code>. The auth service (if configured) sees the original path.</p>
+
+<p><strong>Forward auth:</strong> Sends a GET subrequest to the auth URL with <code>X-Forwarded-Method</code>, <code>X-Forwarded-Uri</code>, <code>X-Forwarded-Host</code>, and <code>X-Forwarded-For</code>. If the auth service returns 2xx, the request proceeds. Any other status is returned to the client.</p>
+
+<p><strong>Retry:</strong> Retries failed requests on the next available backend. Connection failures always retry for idempotent methods. <code>retry_attempts</code> additionally retries on 502/503 status codes. Default: 0 (no status retries).</p>
 
 <h4>Routing priority</h4>
 <ol>
@@ -808,7 +827,7 @@ graph TD
     Router["Router<br/>host + path + listener + weight"]
     WP --> Router
 
-    MW["Middleware<br/>Rate limit · IP allowlist<br/>CORS · HSTS · Compression<br/>Headers · Logging · Mirroring"]
+    MW["Middleware<br/>Rate limit · IP allowlist · Forward auth<br/>CORS · HSTS · Compression · Path strip<br/>Headers · Logging · Mirroring · Retry"]
     WS["WS / gRPC<br/>proxy"]
     Router --> MW
     Router --> WS
@@ -973,11 +992,12 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">name</span> = <span class="s">"https"</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:443"</span>
 
-<span class="c"># Plain listener for HTTP-&gt;HTTPS redirects and ACME challenges</span>
+<span class="c"># Plain listener — ACME challenges + HTTP→HTTPS redirect</span>
 <span class="h">[[listener]]</span>
 <span class="k">name</span> = <span class="s">"http"</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
 <span class="k">tls</span> = <span class="v">false</span>
+<span class="k">redirect_https</span> = <span class="v">true</span>
 
 <span class="c"># API backends — h2c multiplexed, load balanced</span>
 <span class="h">[[service]]</span>
@@ -1030,6 +1050,9 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">log_json</span> = <span class="v">true</span>
 <span class="k">canary_service</span> = <span class="s">"api-canary"</span>
 <span class="k">canary_percent</span> = <span class="v">10</span>
+<span class="k">strip_prefix</span> = <span class="s">"/v1"</span>
+<span class="k">retry_attempts</span> = <span class="v">2</span>
+<span class="k">forward_auth</span> = <span class="s">"http://auth.internal:9000/verify"</span>
 <span class="k">mirror</span> = <span class="s">"http://shadow.internal:3000"</span>
 <span class="k">mirror_percent</span> = <span class="v">10</span>
 
