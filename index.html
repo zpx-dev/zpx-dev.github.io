@@ -452,7 +452,7 @@ EOF
   <div class="feat"><strong>CORS</strong><span>Configurable cross-origin headers per route</span></div>
   <div class="feat"><strong>Compression</strong><span>Brotli, zstd, and gzip with Accept-Encoding q-value negotiation</span></div>
   <div class="feat"><strong>Logging</strong><span>Per-route request/response logging in text or JSON</span></div>
-  <div class="feat"><strong>Custom Headers</strong><span>Inject response headers per route</span></div>
+  <div class="feat"><strong>Custom Headers</strong><span>Inject multiple response headers per route (add_headers)</span></div>
   <div class="feat"><strong>Smart Routing</strong><span>Host + path with specificity scoring, weights, listener filtering, POSIX regex</span></div>
   <div class="feat"><strong>Retry</strong><span>Auto-retry on connection failure and 502/503 status. Configurable per-route</span></div>
   <div class="feat"><strong>Path Stripping</strong><span>Strip a path prefix before proxying to backends (/api/users &rarr; /users)</span></div>
@@ -593,8 +593,10 @@ EOF
 
 <span class="c"># Headers</span>
 <span class="k">cors_origins</span> = <span class="s">"*"</span>               <span class="c"># CORS allowed origins</span>
-<span class="k">add_header</span> = <span class="s">"X-Proxy"</span>           <span class="c"># Custom response header name</span>
-<span class="k">add_header_value</span> = <span class="s">"zpx"</span>         <span class="c"># Custom response header value</span>
+<span class="k">add_headers</span> = [                  <span class="c"># Custom response headers ("Name: value")</span>
+  <span class="s">"X-Proxy: zpx"</span>,
+  <span class="s">"X-Powered-By: zpx"</span>,
+]
 
 <span class="c"># Content</span>
 <span class="k">compress</span> = <span class="v">true</span>                  <span class="c"># Response compression (br/zstd/gzip)</span>
@@ -654,8 +656,7 @@ EOF
 <pre><code><span class="c"># Global: all routes get HSTS and a custom header</span>
 <span class="h">[middleware]</span>
 <span class="k">hsts</span> = <span class="v">true</span>
-<span class="k">add_header</span> = <span class="s">"X-Clacks-Overhead"</span>
-<span class="k">add_header_value</span> = <span class="s">"GNU Terry Pratchett"</span>
+<span class="k">add_headers</span> = [<span class="s">"X-Clacks-Overhead: GNU Terry Pratchett"</span>]
 
 <span class="c"># Per-listener: routes on HTTPS also get compression</span>
 <span class="h">[[listener]]</span>
@@ -677,7 +678,7 @@ EOF
 <span class="k">listener</span> = <span class="s">"https"</span>
 <span class="k">rate_limit_rps</span> = <span class="v">500</span></code></pre>
 
-<p>Supported fields: <code>log</code>, <code>log_json</code>, <code>rate_limit_rps</code>, <code>cors_origins</code>, <code>compress</code>, <code>hsts</code>, <code>hsts_max_age</code>, <code>hsts_subdomains</code>, <code>hsts_preload</code>, <code>add_header</code>, <code>add_header_value</code>, <code>ip_allowlist</code>, <code>ip_allowlist_deny</code>, <code>ws_allowed_origins</code>, <code>retry_attempts</code>, <code>forward_auth</code>.</p>
+<p>Supported fields: <code>log</code>, <code>log_json</code>, <code>rate_limit_rps</code>, <code>cors_origins</code>, <code>compress</code>, <code>hsts</code>, <code>hsts_max_age</code>, <code>hsts_subdomains</code>, <code>hsts_preload</code>, <code>add_headers</code>, <code>ip_allowlist</code>, <code>ip_allowlist_deny</code>, <code>ws_allowed_origins</code>, <code>retry_attempts</code>, <code>forward_auth</code>.</p>
 
 <p>Route-only fields (not inheritable): <code>canary_service</code>, <code>canary_percent</code>, <code>mirror</code>, <code>mirror_percent</code>, <code>strip_prefix</code>.</p>
 
@@ -1044,8 +1045,7 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">hsts</span> = <span class="v">true</span>
 <span class="k">log</span> = <span class="v">true</span>
 <span class="k">log_json</span> = <span class="v">true</span>
-<span class="k">add_header</span> = <span class="s">"X-Clacks-Overhead"</span>
-<span class="k">add_header_value</span> = <span class="s">"GNU Terry Pratchett"</span>
+<span class="k">add_headers</span> = [<span class="s">"X-Clacks-Overhead: GNU Terry Pratchett"</span>]
 
 <span class="h">[docker]</span>
 <span class="k">enabled</span> = <span class="v">true</span>
