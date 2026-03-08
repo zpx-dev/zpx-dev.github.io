@@ -439,7 +439,7 @@ EOF
   <div class="feat"><strong>Multiple Listeners</strong><span>Named listeners &mdash; TLS or plain, each on its own port</span></div>
   <div class="feat"><strong>ACME Certificates</strong><span>Automatic provisioning and renewal via acme.sh (HTTP-01 and DNS-01)</span></div>
   <div class="feat"><strong>Hot Reload</strong><span>SIGHUP reloads routes, services, pools, rate limiters, IP allowlists, and TLS certs atomically</span></div>
-  <div class="feat"><strong>Docker Discovery</strong><span>Auto-discover containers via Docker socket labels</span></div>
+  <div class="feat"><strong>Docker Discovery</strong><span>Auto-discover containers via Docker socket with live event streaming</span></div>
   <div class="feat"><strong>WebSocket Proxy</strong><span>Transparent upgrade and bidirectional proxying with origin filtering</span></div>
   <div class="feat"><strong>gRPC Streaming</strong><span>TCP-level proxy on a dedicated listener per gRPC service</span></div>
   <div class="feat"><strong>Canary Deployments</strong><span>Route a percentage of traffic to a canary service for safe rollouts</span></div>
@@ -683,7 +683,7 @@ EOF
 <section id="docker">
 <h2>Docker Discovery</h2>
 
-<p>zpx auto-discovers containers via Docker socket labels.</p>
+<p>zpx auto-discovers containers via Docker socket labels and live event streaming. When a container starts, stops, or changes health status, routes are rediscovered and hot-swapped atomically — no restart or SIGHUP required.</p>
 
 <h3>Container Labels</h3>
 <p>Labels use a namespaced format: <code>zpx.service.&lt;name&gt;.&lt;field&gt;</code> and <code>zpx.route.&lt;name&gt;.&lt;field&gt;</code>. A single container can expose multiple services and routes.</p>
@@ -752,7 +752,7 @@ EOF
 <p>Open <code>http://localhost:9090/_zpx/</code> to view:</p>
 <ul>
   <li>Request rate and error percentage with sparkline history</li>
-  <li>p50/p99 latency with sparkline history</li>
+  <li>p50/p99/p99.9 latency with sparkline history</li>
   <li>Status code distribution (2xx/3xx/4xx/5xx)</li>
   <li>Backend health per service with circuit breaker state</li>
   <li>Route table with active middleware</li>
