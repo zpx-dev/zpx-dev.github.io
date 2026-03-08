@@ -384,8 +384,10 @@ zig build -Doptimize=ReleaseFast
 
 <span class="c"># Create config</span>
 cat &gt; zpx.toml &lt;&lt; 'EOF'
-<span class="h">[server]</span>
+<span class="h">[[listener]]</span>
+<span class="k">name</span> = <span class="s">"http"</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>
+<span class="k">tls</span> = <span class="v">false</span>
 
 <span class="h">[[service]]</span>
 <span class="k">name</span> = <span class="s">"app"</span>
@@ -399,11 +401,10 @@ EOF
 <span class="c"># Run</span>
 ./zig-out/bin/zpx zpx.toml</code></pre>
 
-<p>zpx is now proxying traffic on <code>:8080</code> to your backend on <code>:3000</code>.</p>
+<p>zpx is now proxying HTTP traffic on <code>:8080</code> to your backend on <code>:3000</code>.</p>
 
 <h3>Add TLS</h3>
 <pre><code><span class="h">[server]</span>
-<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
 <span class="k">tls_cert</span> = <span class="s">"/path/cert.pem"</span>
 <span class="k">tls_key</span> = <span class="s">"/path/key.pem"</span>
 
@@ -468,8 +469,7 @@ EOF
 
 <h3>Server</h3>
 <pre><code><span class="h">[server]</span>
-<span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>            <span class="c"># Internal HTTP listen address (IPv6: "[::]:8080")</span>
-<span class="k">workers</span> = <span class="v">4</span>                       <span class="c"># CPU-pinned worker threads (default: CPU count, max 32)</span>
+<span class="k">workers</span> = <span class="v">4</span>                       <span class="c"># Worker threads (default: 0 = auto, CPU count up to 32)</span>
 <span class="k">tls_cert</span> = <span class="s">"/path/cert.pem"</span>       <span class="c"># TLS certificate (optional if using ACME)</span>
 <span class="k">tls_key</span> = <span class="s">"/path/key.pem"</span>         <span class="c"># TLS private key (optional if using ACME)</span>
 <span class="k">proxy_timeout</span> = <span class="v">30</span>                <span class="c"># Upstream timeout in seconds (1-3600, default: 30)</span>
@@ -623,7 +623,6 @@ EOF
 <h3>HTTP-01 Challenge</h3>
 <p>For single-domain certs. zpx serves the challenge files automatically.</p>
 <pre><code><span class="h">[server]</span>
-<span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>
 <span class="k">acme_domain</span> = [<span class="s">"example.com"</span>]
 <span class="k">acme_email</span> = <span class="s">"you@example.com"</span>
 
@@ -639,7 +638,6 @@ EOF
 <h3>DNS-01 Challenge (Wildcard)</h3>
 <p>For wildcard certificates. Supports <a href="https://github.com/acmesh-official/acme.sh/wiki/dnsapi">90+ DNS providers</a>.</p>
 <pre><code><span class="h">[server]</span>
-<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
 <span class="k">acme_domain</span> = [<span class="s">"*.example.com"</span>, <span class="s">"example.com"</span>]
 <span class="k">acme_email</span> = <span class="s">"you@example.com"</span>
 <span class="k">acme_dns_provider</span> = <span class="s">"dns_cf"</span>
@@ -898,8 +896,6 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <pre><code><span class="k">include</span> = <span class="s">"conf.d/*.toml"</span>
 
 <span class="h">[server]</span>
-<span class="k">bind</span> = <span class="s">"127.0.0.1:8080"</span>
-<span class="k">workers</span> = <span class="v">8</span>
 <span class="k">proxy_timeout</span> = <span class="v">30</span>
 <span class="k">admin_bind</span> = <span class="s">"127.0.0.1:9090"</span>
 <span class="k">admin_token</span> = <span class="s">"change-me"</span>
