@@ -416,7 +416,7 @@ EOF
 <span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
 <span class="k">tls</span> = <span class="v">false</span></code></pre>
 
-<p>Listeners handle the public-facing ports. TLS listeners terminate TLS and negotiate HTTP/2 via ALPN. Plain listeners (<code>tls = false</code>) shuttle bytes directly to the internal httpz server &mdash; useful for HTTP-to-HTTPS redirects or ACME HTTP-01 challenges.</p>
+<p>Listeners handle the public-facing ports. TLS listeners terminate TLS and negotiate HTTP/2 via ALPN. Plain listeners (<code>tls = false</code>) handle HTTP/1.1 directly &mdash; useful for HTTP-to-HTTPS redirects or ACME HTTP-01 challenges.</p>
 
 <h3>Validate config</h3>
 <pre><code>zpx validate zpx.toml</code></pre>
@@ -440,7 +440,7 @@ EOF
   <div class="feat"><strong>Docker Discovery</strong><span>Auto-discover containers via Docker socket labels</span></div>
   <div class="feat"><strong>WebSocket Proxy</strong><span>Transparent upgrade and bidirectional proxying with origin filtering</span></div>
   <div class="feat"><strong>gRPC Streaming</strong><span>TCP-level proxy on a dedicated listener per gRPC service</span></div>
-  <div class="feat"><strong>Request Mirroring</strong><span>Copy traffic to a secondary URL for shadow testing</span></div>
+  <div class="feat"><strong>Request Mirroring</strong><span>Fire-and-forget traffic mirroring with percentage sampling. H2 mirrors full body; H1 mirrors body up to 1 MB</span></div>
   <div class="feat"><strong>Rate Limiting</strong><span>Per-route token-bucket by client IP</span></div>
   <div class="feat"><strong>IP Allowlist</strong><span>Per-route and per-service CIDR access control (403 or TCP drop)</span></div>
   <div class="feat"><strong>Per-IP Limits</strong><span>Connection limiting across TLS, gRPC, and WebSocket (64 max)</span></div>
@@ -469,7 +469,7 @@ EOF
 <h3>Server</h3>
 <pre><code><span class="h">[server]</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:8080"</span>            <span class="c"># Internal HTTP listen address (IPv6: "[::]:8080")</span>
-<span class="k">workers</span> = <span class="v">4</span>                       <span class="c"># httpz worker threads (default: 4)</span>
+<span class="k">workers</span> = <span class="v">4</span>                       <span class="c"># CPU-pinned worker threads (default: CPU count, max 32)</span>
 <span class="k">tls_cert</span> = <span class="s">"/path/cert.pem"</span>       <span class="c"># TLS certificate (optional if using ACME)</span>
 <span class="k">tls_key</span> = <span class="s">"/path/key.pem"</span>         <span class="c"># TLS private key (optional if using ACME)</span>
 <span class="k">proxy_timeout</span> = <span class="v">30</span>                <span class="c"># Upstream timeout in seconds (1-3600, default: 30)</span>
@@ -497,9 +497,9 @@ EOF
 <span class="h">[[listener]]</span>
 <span class="k">name</span> = <span class="s">"http"</span>
 <span class="k">bind</span> = <span class="s">"0.0.0.0:80"</span>
-<span class="k">tls</span> = <span class="v">false</span>                       <span class="c"># Plain TCP shuttle to httpz</span></code></pre>
+<span class="k">tls</span> = <span class="v">false</span>                       <span class="c"># Plain HTTP (no TLS)</span></code></pre>
 
-<p>TLS listeners terminate TLS 1.3 with ALPN negotiation. HTTP/2 connections are handled by the h2 worker pool; HTTP/1.1 connections are shuttled to httpz. Plain listeners forward bytes directly to httpz without TLS.</p>
+<p>TLS listeners terminate TLS 1.3 with ALPN negotiation. HTTP/2 connections use nghttp2 framing; HTTP/1.1 connections use a zero-copy proxy path. Both go through the same CPU-pinned worker pool. Plain listeners handle HTTP/1.1 directly without TLS &mdash; useful for ACME HTTP-01 challenges and redirects.</p>
 
 <p><code>tls_cert</code> and <code>tls_key</code> are required when any listener has <code>tls = true</code> (unless <code>acme_domain</code> is set).</p>
 
@@ -589,6 +589,8 @@ EOF
 <span class="c"># Mirroring</span>
 <span class="k">mirror</span> = <span class="s">"http://shadow:3000"</span>    <span class="c"># Mirror traffic URL (optional)</span>
 <span class="k">mirror_percent</span> = <span class="v">50</span>              <span class="c"># Percentage to mirror (default: 100)</span></code></pre>
+
+<p><strong>Mirroring:</strong> Fire-and-forget &mdash; the mirror request is sent in a detached thread and does not affect primary request latency. H2 always mirrors the full request body. H1 mirrors the body only when Content-Length is 1 MB or less; larger or chunked bodies are mirrored without body content.</p>
 
 <h4>Routing priority</h4>
 <ol>
@@ -758,6 +760,9 @@ EOF
     <tr><td><code>GET /_zpx/</code></td><td>Dashboard HTML</td></tr>
     <tr><td><code>GET /_zpx/ws</code></td><td>WebSocket metrics feed</td></tr>
     <tr><td><code>GET /_zpx/api/config</code></td><td>JSON config snapshot</td></tr>
+    <tr><td><code>GET /_zpx/api/config.d</code></td><td>List config include files</td></tr>
+    <tr><td><code>PUT /_zpx/api/config.d</code></td><td>Create/update a config include file</td></tr>
+    <tr><td><code>DELETE /_zpx/api/config.d</code></td><td>Delete a config include file</td></tr>
   </tbody>
 </table>
 
@@ -785,30 +790,19 @@ graph TD
     L2 --> TLS
 
     H2["h2 (ALPN)<br/>nghttp2"]
-    H1["h1 (ALPN)<br/>raw shuttle"]
+    H1["h1 (ALPN)<br/>H1 proxy"]
     TLS --> H2
     TLS --> H1
 
-    WP["H2 Worker Pool<br/>CPU-pinned, epoll per worker"]
+    WP["Worker Pool<br/>CPU-pinned, epoll per worker<br/>4-way pointer tagging"]
     H2 --> WP
-
-    H2MW["Inline Middleware<br/>Rate limit · IP allowlist · CORS"]
-    WP --> H2MW
-
-    H2MW --> B1
-    H2MW --> B2
-
-    H1 --> HTTPZ
-    L3 --> HTTPZ
-
-    HTTPZ["httpz server<br/>(bind = :8080)"]
+    H1 --> WP
+    L3 --> WP
 
     Router["Router<br/>host + path + listener + weight"]
-    ACME["ACME challenge<br/>handler"]
-    HTTPZ --> Router
-    HTTPZ --> ACME
+    WP --> Router
 
-    MW["Middleware<br/>Rate limit · IP allowlist<br/>CORS · HSTS · Compression<br/>Headers · Logging"]
+    MW["Middleware<br/>Rate limit · IP allowlist<br/>CORS · HSTS · Compression<br/>Headers · Logging · Mirroring"]
     WS["WS / gRPC<br/>proxy"]
     Router --> MW
     Router --> WS
@@ -830,15 +824,15 @@ graph TD
     class Internet internet
     class L1,L2,L3 listener
     class TLS,H2,H1,WP tls
-    class HTTPZ,Router,ACME server
-    class H2MW,MW,WS middleware
+    class Router server
+    class MW,WS middleware
     class B1,B2,B3 backend
 </pre>
 
 <h3>Design</h3>
 <ul>
-  <li><strong>Named listeners</strong> &mdash; each <code>[[listener]]</code> binds a port, either TLS or plain. TLS listeners negotiate ALPN (h2 or http/1.1). Plain listeners shuttle bytes to httpz without TLS overhead. Routes can target a specific listener by name.</li>
-  <li><strong>H2 worker pool</strong> &mdash; N CPU-pinned threads (N = CPU count, max 32), each with its own epoll fd. TLS accept hands off h2 connections via a bounded pending queue with eventfd wakeup. Epoll uses 3-way pointer tagging to distinguish client sockets, h1 upstream, and h2c upstream.</li>
+  <li><strong>Unified worker pool</strong> &mdash; N CPU-pinned threads (N = CPU count, max 32), each with its own epoll fd. Both HTTP/2 and HTTP/1.1 connections go through the same pool. Epoll uses 4-way pointer tagging (bits 0-1) to distinguish H2 clients, H1 clients, h2c upstream, and H1 upstream sockets.</li>
+  <li><strong>Named listeners</strong> &mdash; each <code>[[listener]]</code> binds a port, either TLS or plain. TLS listeners negotiate ALPN (h2 or http/1.1). Plain listeners accept HTTP/1.1 directly. Routes can target a specific listener by name.</li>
   <li><strong>kTLS offload</strong> &mdash; after TLS handshake, cipher keys are pushed to the kernel via <code>setsockopt</code>. Subsequent encrypt/decrypt happens in kernel space, avoiding userspace copies.</li>
   <li><strong>h2c multiplexed upstream</strong> &mdash; <code>h2c://</code> backends use HTTP/2 cleartext with streaming flow control, 1 MB connection windows, and GOAWAY graceful migration (REFUSED_STREAM retries on fresh connections).</li>
   <li><strong>Service/route separation</strong> &mdash; services define backend pools (balancing, health, circuit breakers). Routes define matching and middleware. Multiple routes can share a service.</li>
@@ -846,6 +840,7 @@ graph TD
   <li><strong>Ref-counted hot reload</strong> &mdash; <code>SIGHUP</code> swaps the entire routing table atomically. Old state is freed after all in-flight requests complete.</li>
   <li><strong>Specificity routing</strong> &mdash; routes scored by host (2 pts) + path (1 pt), with explicit <code>weight</code> override. POSIX ERE regex supported.</li>
   <li><strong>Content negotiation</strong> &mdash; compression negotiates <code>Accept-Encoding</code> with q-value parsing, preferring brotli &gt; zstd &gt; gzip.</li>
+  <li><strong>Fire-and-forget mirroring</strong> &mdash; request body pre-buffered (up to 1 MB) and sent to a secondary URL in a detached thread with percentage-based sampling.</li>
 </ul>
 </section>
 
@@ -877,12 +872,12 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <table>
   <thead><tr><th>Dependency</th><th>Purpose</th></tr></thead>
   <tbody>
-    <tr><td><a href="https://github.com/karlseguin/http.zig">httpz</a></td><td>HTTP server</td></tr>
     <tr><td><a href="https://github.com/ianic/tls.zig">tls.zig</a></td><td>TLS 1.3 implementation</td></tr>
     <tr><td><a href="https://github.com/sam701/zig-toml">zig-toml</a></td><td>TOML config parsing</td></tr>
     <tr><td><a href="https://nghttp2.org/">nghttp2</a> v1.64.0</td><td>HTTP/2 framing (C library)</td></tr>
     <tr><td><a href="https://github.com/google/brotli">brotli</a> v1.1.0</td><td>Brotli compression (C library)</td></tr>
     <tr><td><a href="https://github.com/facebook/zstd">zstd</a> v1.5.7</td><td>Zstandard compression (C library)</td></tr>
+    <tr><td><a href="https://github.com/zlib-ng/zlib-ng">zlib-ng</a> v2.2.4</td><td>Gzip compression (C library)</td></tr>
   </tbody>
 </table>
 
