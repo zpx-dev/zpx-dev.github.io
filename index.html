@@ -348,6 +348,7 @@ tr:last-child td { border-bottom: none; }
     <li><a href="#acme">ACME</a></li>
     <li><a href="#docker">Docker Discovery</a></li>
     <li><a href="#dashboard">Admin Dashboard</a></li>
+    <li><a href="#prometheus">Prometheus Metrics</a></li>
     <div class="sep"></div>
     <li><a href="#architecture">Architecture</a></li>
     <li><a href="#performance">Performance</a></li>
@@ -460,6 +461,7 @@ EOF
   <div class="feat"><strong>Forward Auth</strong><span>Delegate authentication to an external service before proxying</span></div>
   <div class="feat"><strong>Graceful Shutdown</strong><span>SIGINT/SIGTERM drains connections before exit</span></div>
   <div class="feat"><strong>Admin Dashboard</strong><span>Real-time metrics with WebSocket push and token auth</span></div>
+  <div class="feat"><strong>Prometheus Metrics</strong><span>GET /metrics with per-service counters, latency histograms, backend health, and process/system stats</span></div>
   <div class="feat"><strong>Tracing</strong><span>Auto-injects W3C traceparent when missing</span></div>
   <div class="feat"><strong>Middleware Defaults</strong><span>Three-level cascading defaults: [middleware] &rarr; [[listener]] &rarr; [[route]]</span></div>
   <div class="feat"><strong>Config Includes</strong><span>Split config across conf.d/*.toml with glob patterns</span></div>
@@ -844,10 +846,100 @@ EOF
     <tr><td><code>GET /_zpx/api/config.d</code></td><td>List config include files</td></tr>
     <tr><td><code>PUT /_zpx/api/config.d</code></td><td>Create/update a config include file</td></tr>
     <tr><td><code>DELETE /_zpx/api/config.d</code></td><td>Delete a config include file</td></tr>
+    <tr><td><code>GET /metrics</code></td><td>Prometheus metrics (when enabled)</td></tr>
   </tbody>
 </table>
 
 <p>All endpoints require <code>Authorization: Bearer &lt;token&gt;</code> when <code>admin_token</code> is set.</p>
+</section>
+
+<!-- Prometheus Metrics -->
+<section id="prometheus">
+<h2>Prometheus Metrics</h2>
+
+<pre><code><span class="h">[prometheus]</span>
+<span class="k">enabled</span> = <span class="v">true</span></code></pre>
+
+<p>When enabled, zpx exposes a <code>GET /metrics</code> endpoint on the admin port in Prometheus text exposition format (0.0.4). Disabled by default. Reloadable via <code>SIGHUP</code>.</p>
+
+<h3>Request Flow</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Labels</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_requests_total</code></td><td>counter</td><td>&mdash;</td></tr>
+    <tr><td><code>zpx_requests_status_total</code></td><td>counter</td><td><code>status</code></td></tr>
+    <tr><td><code>zpx_requests_protocol_total</code></td><td>counter</td><td><code>protocol</code></td></tr>
+    <tr><td><code>zpx_request_duration_seconds</code></td><td>histogram</td><td>&mdash;</td></tr>
+    <tr><td><code>zpx_service_requests_total</code></td><td>counter</td><td><code>service</code></td></tr>
+    <tr><td><code>zpx_service_duration_seconds</code></td><td>histogram</td><td><code>service</code></td></tr>
+    <tr><td><code>zpx_request_body_bytes_total</code></td><td>counter</td><td><code>service</code>, <code>direction</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Connections</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Labels</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_connections_active</code></td><td>gauge</td><td><code>type</code></td></tr>
+    <tr><td><code>zpx_connections_total</code></td><td>counter</td><td>&mdash;</td></tr>
+    <tr><td><code>zpx_tls_handshake_errors_total</code></td><td>counter</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+
+<h3>Backends</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Labels</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_backend_up</code></td><td>gauge</td><td><code>service</code>, <code>backend</code></td></tr>
+    <tr><td><code>zpx_backend_active_connections</code></td><td>gauge</td><td><code>service</code>, <code>backend</code></td></tr>
+    <tr><td><code>zpx_backend_latency_ewma_seconds</code></td><td>gauge</td><td><code>service</code>, <code>backend</code></td></tr>
+    <tr><td><code>zpx_backend_circuit_state</code></td><td>gauge</td><td><code>service</code>, <code>backend</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Middleware</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_rate_limit_rejected_total</code></td><td>counter</td></tr>
+    <tr><td><code>zpx_ip_allowlist_blocked_total</code></td><td>counter</td></tr>
+  </tbody>
+</table>
+
+<h3>Process</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td><code>process_cpu_seconds_total</code></td><td>counter</td><td><code>/proc/self/stat</code></td></tr>
+    <tr><td><code>process_resident_memory_bytes</code></td><td>gauge</td><td><code>/proc/self/stat</code></td></tr>
+    <tr><td><code>process_virtual_memory_bytes</code></td><td>gauge</td><td><code>/proc/self/stat</code></td></tr>
+    <tr><td><code>process_open_fds</code></td><td>gauge</td><td><code>/proc/self/fd</code></td></tr>
+    <tr><td><code>process_max_fds</code></td><td>gauge</td><td><code>/proc/self/limits</code></td></tr>
+    <tr><td><code>process_threads</code></td><td>gauge</td><td><code>/proc/self/stat</code></td></tr>
+  </tbody>
+</table>
+
+<h3>System</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_system_cpu_cores</code></td><td>gauge</td><td><code>sched_getaffinity</code></td></tr>
+    <tr><td><code>zpx_system_memory_bytes</code></td><td>gauge</td><td><code>/proc/meminfo</code></td></tr>
+    <tr><td><code>zpx_system_memory_available_bytes</code></td><td>gauge</td><td><code>/proc/meminfo</code></td></tr>
+    <tr><td><code>zpx_system_load1</code></td><td>gauge</td><td><code>/proc/loadavg</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Network</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Type</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td><code>zpx_network_received_bytes_total</code></td><td>counter</td><td><code>/proc/self/net/dev</code></td></tr>
+    <tr><td><code>zpx_network_transmitted_bytes_total</code></td><td>counter</td><td><code>/proc/self/net/dev</code></td></tr>
+  </tbody>
+</table>
+
+<p>The dashboard header shows whether metrics are exposed. All counters are lock-free atomics; process and system metrics are read from procfs at scrape time.</p>
 </section>
 
 <!-- Architecture -->
@@ -1048,6 +1140,9 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">add_headers</span> = [<span class="s">"X-Clacks-Overhead: GNU Terry Pratchett"</span>]
 
 <span class="h">[docker]</span>
+<span class="k">enabled</span> = <span class="v">true</span>
+
+<span class="h">[prometheus]</span>
 <span class="k">enabled</span> = <span class="v">true</span>
 
 <span class="c"># TLS listener (public) — routes here also get compression</span>
