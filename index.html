@@ -554,10 +554,7 @@ EOF
 <span class="c"># IP allowlist</span>
 <span class="k">ip_allowlist</span> = <span class="s">"10.0.0.0/8, 192.168.0.0/16"</span>  <span class="c"># Comma-separated CIDRs</span>
 <span class="k">ip_allowlist_deny</span> = <span class="s">"403"</span>        <span class="c"># "403" or "drop" (TCP RST)</span>
-
-<span class="c"># gRPC streaming</span>
-<span class="k">protocol</span> = <span class="s">"http"</span>                <span class="c"># "http" | "grpc"</span>
-<span class="k">grpc_bind</span> = <span class="s">"0.0.0.0:9000"</span>      <span class="c"># Dedicated gRPC listener (required when protocol = "grpc")</span></code></pre>
+</code></pre>
 
 <h4>Backend URL schemes</h4>
 <ul>
@@ -804,15 +801,13 @@ EOF
   <tbody>
     <tr><td><code>port</code></td><td>Container port (builds <code>http://{container_ip}:{port}</code>)</td></tr>
     <tr><td><code>url</code></td><td>Explicit backend URL (<code>http://</code>, <code>https://</code>, or <code>h2c://</code>)</td></tr>
-    <tr><td><code>scheme</code></td><td>URL scheme when using <code>port</code> (default: <code>http</code>)</td></tr>
+    <tr><td><code>scheme</code></td><td>URL scheme when using <code>port</code>: <code>http</code>, <code>https</code>, <code>h2c</code> (default: <code>http</code>)</td></tr>
     <tr><td><code>health_path</code></td><td>Health check path (default: <code>/healthz</code>)</td></tr>
-    <tr><td><code>balance</code></td><td>Load balancing algorithm</td></tr>
+    <tr><td><code>balance</code></td><td><code>round_robin</code>, <code>least_conn</code>, <code>least_latency</code>, <code>consistent_hash</code>, <code>peak_ewma</code>, <code>p2c</code></td></tr>
     <tr><td><code>health_interval</code></td><td>Health check interval in seconds</td></tr>
-    <tr><td><code>max_conns</code></td><td>Max concurrent connections per backend</td></tr>
-    <tr><td><code>circuit_break_threshold</code></td><td>Consecutive failures before circuit opens</td></tr>
-    <tr><td><code>circuit_break_duration</code></td><td>Seconds before half-open retry</td></tr>
-    <tr><td><code>protocol</code></td><td><code>http</code> or <code>grpc</code></td></tr>
-    <tr><td><code>grpc_bind</code></td><td>Dedicated gRPC listener address</td></tr>
+    <tr><td><code>max_conns</code></td><td>Max concurrent connections per backend (0 = unlimited)</td></tr>
+    <tr><td><code>circuit_break_threshold</code></td><td>Consecutive failures before circuit opens (default: 5)</td></tr>
+    <tr><td><code>circuit_break_duration</code></td><td>Seconds before half-open retry (default: 30)</td></tr>
   </tbody>
 </table>
 
@@ -828,18 +823,22 @@ EOF
     <tr><td><code>service</code></td><td>Target service name (defaults to the route's own name)</td></tr>
     <tr><td><code>listener</code></td><td>Restrict to a named listener</td></tr>
     <tr><td><code>weight</code></td><td>Routing priority (higher wins)</td></tr>
-    <tr><td><code>log</code></td><td>Enable request logging</td></tr>
-    <tr><td><code>log_json</code></td><td>JSON log format</td></tr>
-    <tr><td><code>compress</code></td><td>Response compression</td></tr>
-    <tr><td><code>hsts</code></td><td>Strict-Transport-Security header</td></tr>
-    <tr><td><code>rate_limit_rps</code></td><td>Max requests/sec per IP</td></tr>
-    <tr><td><code>retry_attempts</code></td><td>Retry on 502/503</td></tr>
-    <tr><td><code>cors_origins</code></td><td>CORS allowed origins</td></tr>
-    <tr><td><code>ip_allowlist</code></td><td>CIDR access control</td></tr>
-    <tr><td><code>ip_allowlist_deny</code></td><td><code>403</code> or <code>drop</code></td></tr>
+    <tr><td><code>log</code></td><td>Enable request logging: <code>true</code> / <code>false</code></td></tr>
+    <tr><td><code>log_json</code></td><td>JSON log format: <code>true</code> / <code>false</code></td></tr>
+    <tr><td><code>compress</code></td><td>Response compression (br/zstd/gzip): <code>true</code> / <code>false</code></td></tr>
+    <tr><td><code>hsts</code></td><td>Strict-Transport-Security header: <code>true</code> / <code>false</code></td></tr>
+    <tr><td><code>rate_limit_rps</code></td><td>Max requests/sec per IP (0 = unlimited)</td></tr>
+    <tr><td><code>retry_attempts</code></td><td>Retry on 502/503 (0&ndash;10, default: 0)</td></tr>
+    <tr><td><code>cors_origins</code></td><td>CORS allowed origins (e.g. <code>*</code>, <code>https://app.example.com</code>)</td></tr>
+    <tr><td><code>ip_allowlist</code></td><td>Comma-separated CIDRs (e.g. <code>10.0.0.0/8, 192.168.0.0/16</code>)</td></tr>
+    <tr><td><code>ip_allowlist_deny</code></td><td>Deny action: <code>403</code> or <code>drop</code></td></tr>
     <tr><td><code>strip_prefix</code></td><td>Strip path prefix before proxying</td></tr>
-    <tr><td><code>forward_auth</code></td><td>Forward auth service URL</td></tr>
+    <tr><td><code>forward_auth</code></td><td>Auth service URL (2xx = allow, else deny)</td></tr>
     <tr><td><code>add_headers</code></td><td>Custom response headers (comma-separated <code>Name: Value</code> pairs)</td></tr>
+    <tr><td><code>canary_service</code></td><td>Route % of traffic to a different service</td></tr>
+    <tr><td><code>canary_percent</code></td><td>Percentage routed to canary (0&ndash;100, default: 0)</td></tr>
+    <tr><td><code>mirror</code></td><td>Mirror traffic URL (fire-and-forget)</td></tr>
+    <tr><td><code>mirror_percent</code></td><td>Percentage of requests to mirror (0&ndash;100, default: 100)</td></tr>
   </tbody>
 </table>
 
@@ -1210,13 +1209,6 @@ zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-musl</code></pre>
 <span class="k">balance</span> = <span class="s">"least_latency"</span>
 <span class="k">circuit_break_threshold</span> = <span class="v">3</span>
 <span class="k">circuit_break_duration</span> = <span class="v">15</span>
-
-<span class="c"># gRPC backend</span>
-<span class="h">[[service]]</span>
-<span class="k">name</span> = <span class="s">"grpc-svc"</span>
-<span class="k">protocol</span> = <span class="s">"grpc"</span>
-<span class="k">grpc_bind</span> = <span class="s">"0.0.0.0:9000"</span>
-<span class="k">backends</span> = [<span class="s">"http://10.0.0.10:50051"</span>]
 
 <span class="c"># Catch-all</span>
 <span class="h">[[service]]</span>
