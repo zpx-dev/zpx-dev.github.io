@@ -130,18 +130,18 @@ body::after {
 .topbar-nav .gh svg { width: 18px; height: 18px; fill: currentColor; }
 
 .btn-docs {
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
   font-family: var(--sans);
-  color: #0a0800;
-  background: var(--amber);
-  border: none;
+  color: var(--amber);
+  background: transparent;
+  border: 1px solid var(--amber);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
-.btn-docs:hover { background: #fbb540; text-decoration: none; color: #0a0800; }
+.btn-docs:hover { background: var(--amber); color: #000; text-decoration: none; }
 
 /* ── Hero ── */
 .hero {
