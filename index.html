@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>zpx — The fast reverse proxy</title>
-<meta name="description" content="zpx is a reverse proxy written in Zig. 5-6x faster than Caddy and Traefik. HTTP/2, kTLS offload, ACME, hot reload, Docker discovery.">
+<meta name="description" content="zpx is a reverse proxy written in Zig. Matches HAProxy at 527K req/s, 2.5x Traefik, 4.7x Caddy. HTTP/2, kTLS offload, ACME, hot reload, Docker discovery.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#08090c">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -29,6 +30,9 @@
   --purple: #a78bfa;
   --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
   --sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
 }
 
 html { scroll-behavior: smooth; }
@@ -45,7 +49,24 @@ body {
 a { color: var(--amber); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* ── Topbar ── */
+/* ── Focus ── */
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .bench-bar { transition: none !important; }
+}
+
+/* ── Header ── */
 
 .topbar {
   position: fixed;
@@ -93,7 +114,7 @@ a:hover { text-decoration: underline; }
   color: var(--bg);
   background: var(--amber);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -119,10 +140,7 @@ a:hover { text-decoration: underline; }
   margin-bottom: 1.25rem;
 }
 
-.hero-text h1 .fast {
-  color: var(--amber);
-  position: relative;
-}
+.hero-text h1 .fast { color: var(--amber); }
 
 .hero-text .sub {
   font-size: 1.15rem;
@@ -146,7 +164,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--sans);
   color: var(--bg);
   background: var(--amber);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: background 0.15s, transform 0.1s;
 }
 .btn-primary:hover { background: #fbb540; text-decoration: none; transform: translateY(-1px); }
@@ -160,7 +178,7 @@ a:hover { text-decoration: underline; }
   color: var(--text-secondary);
   background: var(--bg-surface);
   border: 1px solid var(--border-bright);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: border-color 0.15s, color 0.15s;
 }
 .btn-secondary:hover { border-color: var(--text-tertiary); color: var(--text); text-decoration: none; }
@@ -169,7 +187,7 @@ a:hover { text-decoration: underline; }
 .hero-bench {
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2rem;
   position: relative;
   overflow: hidden;
@@ -181,7 +199,7 @@ a:hover { text-decoration: underline; }
   top: -1px; left: -1px; right: -1px;
   height: 3px;
   background: linear-gradient(90deg, var(--amber), var(--amber-dim), transparent);
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .bench-title {
@@ -208,13 +226,16 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
   color: var(--text);
 }
+.bench-label.zpx { color: var(--text); }
+.bench-label.haproxy { color: var(--green); }
+.bench-label.traefik { color: var(--purple); }
+.bench-label.caddy { color: var(--cyan); }
 
 .bench-bar-wrap {
   height: 28px;
   background: var(--bg-surface);
   border-radius: 4px;
   overflow: hidden;
-  position: relative;
 }
 
 .bench-bar {
@@ -225,8 +246,9 @@ a:hover { text-decoration: underline; }
 }
 
 .bench-bar.zpx { background: var(--amber); }
-.bench-bar.caddy { background: var(--cyan); opacity: 0.7; }
+.bench-bar.haproxy { background: var(--green); opacity: 0.7; }
 .bench-bar.traefik { background: var(--purple); opacity: 0.7; }
+.bench-bar.caddy { background: var(--cyan); opacity: 0.7; }
 
 .bench-val {
   font-family: var(--mono);
@@ -260,9 +282,7 @@ a:hover { text-decoration: underline; }
   background: var(--bg-raised);
 }
 
-.tick {
-  text-align: center;
-}
+.tick { text-align: center; }
 
 .tick-val {
   font-family: var(--mono);
@@ -341,7 +361,7 @@ a:hover { text-decoration: underline; }
 .terminal {
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   font-family: var(--mono);
   font-size: 0.82rem;
@@ -409,7 +429,7 @@ a:hover { text-decoration: underline; }
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -500,6 +520,10 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   flex-shrink: 0;
 }
+.cmp-table .proxy-dot.zpx { background: var(--amber); }
+.cmp-table .proxy-dot.haproxy { background: var(--green); }
+.cmp-table .proxy-dot.traefik { background: var(--purple); }
+.cmp-table .proxy-dot.caddy { background: var(--cyan); }
 
 .cmp-table .num {
   font-family: var(--mono);
@@ -511,11 +535,9 @@ a:hover { text-decoration: underline; }
   font-weight: 700;
 }
 
-.cmp-table .multiplier {
+.cmp-table .na {
+  color: var(--text-tertiary);
   font-family: var(--mono);
-  font-size: 0.8rem;
-  color: var(--green);
-  font-weight: 600;
 }
 
 .cmp-note {
@@ -553,7 +575,7 @@ a:hover { text-decoration: underline; }
   gap: 0.75rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-bright);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 0.75rem 1.25rem;
   font-family: var(--mono);
   font-size: 0.88rem;
@@ -563,13 +585,16 @@ a:hover { text-decoration: underline; }
   transition: border-color 0.15s;
 }
 .cta-install:hover { border-color: var(--text-tertiary); }
+.cta-install:focus-visible { border-color: var(--amber); outline: none; }
 .cta-install .prompt { color: var(--amber); user-select: none; }
 .cta-install .copy-hint {
   font-family: var(--sans);
   font-size: 0.7rem;
   color: var(--text-tertiary);
   margin-left: auto;
+  transition: color 0.15s;
 }
+.cta-install.copied .copy-hint { color: var(--green); }
 
 .cta-links {
   display: flex;
@@ -634,23 +659,23 @@ footer {
 </head>
 <body>
 
-<!-- Topbar -->
-<div class="topbar">
+<!-- Header -->
+<header class="topbar" role="banner">
   <span class="topbar-logo">zpx</span>
-  <nav class="topbar-nav">
+  <nav class="topbar-nav" aria-label="Main navigation">
     <a href="#features">Features</a>
     <a href="#performance">Performance</a>
     <a href="docs/">Docs</a>
-    <a href="https://github.com/zpx-dev/zpx" class="gh">
-      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <a href="https://github.com/zpx-dev/zpx" class="gh" aria-label="GitHub repository">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
     <a href="docs/" class="btn-docs">Documentation</a>
   </nav>
-</div>
+</header>
 
 <!-- Hero -->
-<section class="hero">
+<section class="hero" aria-label="Introduction">
   <div class="hero-text animate-in">
     <h1>The <span class="fast">fast</span><br>reverse proxy.</h1>
     <p class="sub">Written in Zig. No garbage collector, no runtime overhead. HTTP/2 frontends, kTLS offload, ACME certificates, hot reload, Docker discovery. One binary.</p>
@@ -659,26 +684,26 @@ footer {
       <a href="#performance" class="btn-secondary">See benchmarks</a>
     </div>
   </div>
-  <div class="hero-bench animate-in delay-2">
-    <div class="bench-title">req/s &middot; HTTP/2 over TLS &middot; 4KB response</div>
+  <div class="hero-bench animate-in delay-2" aria-label="Benchmark comparison chart">
+    <div class="bench-title">req/s · HTTP/2 over TLS · 4KB response</div>
     <div class="bench-row">
       <span class="bench-label">zpx</span>
-      <div class="bench-bar-wrap"><div class="bench-bar zpx" data-width="100"></div></div>
+      <div class="bench-bar-wrap"><div class="bench-bar zpx" data-width="100" role="img" aria-label="zpx: 527K requests per second"></div></div>
       <span class="bench-val highlight">527K</span>
     </div>
     <div class="bench-row">
-      <span class="bench-label" style="color:var(--green)">HAProxy</span>
-      <div class="bench-bar-wrap"><div class="bench-bar" style="background:var(--green);opacity:0.7" data-width="100"></div></div>
+      <span class="bench-label haproxy">HAProxy</span>
+      <div class="bench-bar-wrap"><div class="bench-bar haproxy" data-width="100" role="img" aria-label="HAProxy: 531K requests per second"></div></div>
       <span class="bench-val">531K</span>
     </div>
     <div class="bench-row">
-      <span class="bench-label" style="color:var(--purple)">Traefik</span>
-      <div class="bench-bar-wrap"><div class="bench-bar traefik" data-width="40"></div></div>
+      <span class="bench-label traefik">Traefik</span>
+      <div class="bench-bar-wrap"><div class="bench-bar traefik" data-width="40" role="img" aria-label="Traefik: 211K requests per second"></div></div>
       <span class="bench-val">211K</span>
     </div>
     <div class="bench-row">
-      <span class="bench-label" style="color:var(--cyan)">Caddy</span>
-      <div class="bench-bar-wrap"><div class="bench-bar caddy" data-width="21"></div></div>
+      <span class="bench-label caddy">Caddy</span>
+      <div class="bench-bar-wrap"><div class="bench-bar caddy" data-width="21" role="img" aria-label="Caddy: 111K requests per second"></div></div>
       <span class="bench-val">111K</span>
     </div>
     <div class="bench-footnote">h2load, TLS 1.3, Ryzen 9 7950X, 32 workers/threads, 3 backends, least_conn. All native, same machine.</div>
@@ -686,13 +711,13 @@ footer {
 </section>
 
 <!-- Ticker -->
-<div class="ticker animate-in delay-3">
+<div class="ticker animate-in delay-3" role="complementary" aria-label="Key metrics">
   <div class="tick">
     <div class="tick-val">527K <span class="unit">req/s</span></div>
     <div class="tick-label">Peak throughput</div>
   </div>
   <div class="tick">
-    <div class="tick-val">2.5<span class="unit">x</span></div>
+    <div class="tick-val">2.5<span class="unit">&times;</span></div>
     <div class="tick-label">vs. Traefik</div>
   </div>
   <div class="tick">
@@ -710,7 +735,7 @@ footer {
 </div>
 
 <!-- Config section -->
-<section class="config-section" id="config">
+<section class="config-section" id="config" aria-label="Configuration">
   <div class="config-text">
     <h2>Simple TOML config.<br>Zero boilerplate.</h2>
     <p>Define services, routes, and middleware in a single file. SIGHUP to reload without dropping connections.</p>
@@ -724,8 +749,8 @@ footer {
       <li>Config includes with glob patterns</li>
     </ul>
   </div>
-  <div class="terminal">
-    <div class="terminal-bar">
+  <div class="terminal" aria-label="Example zpx configuration file">
+    <div class="terminal-bar" aria-hidden="true">
       <span class="terminal-dot"></span>
       <span class="terminal-dot"></span>
       <span class="terminal-dot"></span>
@@ -759,7 +784,7 @@ footer {
 </section>
 
 <!-- Features -->
-<section class="features-section" id="features">
+<section class="features-section" id="features" aria-label="Features">
   <h2>Everything you need.</h2>
   <p class="section-sub">Production-grade features without the runtime overhead of Go or the complexity of Envoy.</p>
   <div class="features-grid">
@@ -780,54 +805,53 @@ footer {
     <div class="feat"><div class="feat-name">Forward Auth</div><div class="feat-desc">Delegate authentication to an external service before proxying.</div></div>
     <div class="feat"><div class="feat-name">Prometheus Metrics</div><div class="feat-desc">Per-service counters, latency histograms, backend health, process and system stats.</div></div>
     <div class="feat"><div class="feat-name">Admin Dashboard</div><div class="feat-desc">Real-time metrics with WebSocket push. Request rate, latency percentiles, backend health.</div></div>
-    <div class="feat"><div class="feat-name">Smart Routing</div><div class="feat-desc">Host + path with specificity scoring, weights, listener filtering, POSIX regex.</div></div>
-    <div class="feat"><div class="feat-name">HSTS &amp; CORS</div><div class="feat-desc">Per-route security headers with preload support. Custom response headers.</div></div>
+    <div class="feat"><div class="feat-name">Smart Routing</div><div class="feat-desc">Host + path with specificity scoring, weights, listener filtering, POSIX regex, HSTS, CORS.</div></div>
   </div>
 </section>
 
 <!-- Comparison -->
-<section class="comparison-section" id="performance">
+<section class="comparison-section" id="performance" aria-label="Performance benchmarks">
   <div class="comparison-inner">
     <h2>Measured, not claimed.</h2>
     <p class="section-sub">h2load over TLS 1.3 (HTTP/2), Ryzen 9 7950X, 32 workers/threads, 3 backends, 4KB JSON. All native, same machine.</p>
     <table class="cmp-table">
       <thead>
         <tr>
-          <th>Proxy</th>
-          <th>No compression</th>
-          <th>zstd</th>
-          <th>gzip</th>
-          <th>brotli</th>
+          <th scope="col">Proxy</th>
+          <th scope="col">No compression</th>
+          <th scope="col">zstd</th>
+          <th scope="col">gzip</th>
+          <th scope="col">brotli</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td><span class="proxy-name"><span class="proxy-dot" style="background:var(--amber)"></span>zpx</span></td>
+          <td><span class="proxy-name"><span class="proxy-dot zpx"></span>zpx</span></td>
           <td><span class="num fast">527K</span></td>
           <td><span class="num fast">413K</span></td>
           <td><span class="num fast">344K</span></td>
           <td><span class="num fast">217K</span></td>
         </tr>
         <tr>
-          <td><span class="proxy-name"><span class="proxy-dot" style="background:var(--green)"></span>HAProxy</span></td>
+          <td><span class="proxy-name"><span class="proxy-dot haproxy"></span>HAProxy</span></td>
           <td><span class="num">531K</span></td>
-          <td><span class="num">&mdash;</span></td>
+          <td><span class="na" aria-label="Not supported">-</span></td>
           <td><span class="num">413K</span></td>
-          <td><span class="num">&mdash;</span></td>
+          <td><span class="na" aria-label="Not supported">-</span></td>
         </tr>
         <tr>
-          <td><span class="proxy-name"><span class="proxy-dot" style="background:var(--purple)"></span>Traefik</span></td>
+          <td><span class="proxy-name"><span class="proxy-dot traefik"></span>Traefik</span></td>
           <td><span class="num">211K</span></td>
-          <td><span class="num">&mdash;</span></td>
+          <td><span class="na" aria-label="Not supported">-</span></td>
           <td><span class="num">168K</span></td>
           <td><span class="num">59K</span></td>
         </tr>
         <tr>
-          <td><span class="proxy-name"><span class="proxy-dot" style="background:var(--cyan)"></span>Caddy</span></td>
+          <td><span class="proxy-name"><span class="proxy-dot caddy"></span>Caddy</span></td>
           <td><span class="num">111K</span></td>
           <td><span class="num">90K</span></td>
           <td><span class="num">93K</span></td>
-          <td><span class="num">&mdash;</span></td>
+          <td><span class="na" aria-label="Not supported">-</span></td>
         </tr>
       </tbody>
     </table>
@@ -836,20 +860,20 @@ footer {
 </section>
 
 <!-- CTA -->
-<section class="cta-section">
+<section class="cta-section" aria-label="Get started">
   <h2>Ship it.</h2>
   <p>One binary. No runtime dependencies. Builds in seconds.</p>
-  <div class="cta-install" onclick="navigator.clipboard.writeText('zig build -Doptimize=ReleaseFast')">
-    <span class="prompt">$</span> zig build -Doptimize=ReleaseFast
+  <button class="cta-install" type="button" aria-label="Copy build command to clipboard">
+    <span class="prompt" aria-hidden="true">$</span> zig build -Doptimize=ReleaseFast
     <span class="copy-hint">click to copy</span>
-  </div>
+  </button>
   <div class="cta-links">
     <a href="docs/" class="btn-primary">Read the docs</a>
     <a href="https://github.com/zpx-dev/zpx" class="btn-secondary">View on GitHub</a>
   </div>
 </section>
 
-<footer>
+<footer role="contentinfo">
   Built with <a href="https://ziglang.org">Zig</a>. MIT Licensed.
 </footer>
 
@@ -863,12 +887,25 @@ window.addEventListener('load', () => {
   }, 400);
 });
 
+// Copy build command
+document.querySelector('.cta-install').addEventListener('click', function() {
+  navigator.clipboard.writeText('zig build -Doptimize=ReleaseFast').then(() => {
+    this.classList.add('copied');
+    this.querySelector('.copy-hint').textContent = 'copied';
+    setTimeout(() => {
+      this.classList.remove('copied');
+      this.querySelector('.copy-hint').textContent = 'click to copy';
+    }, 2000);
+  });
+});
+
 // Intersection observer for scroll animations
-const observer = new IntersectionObserver((entries) => {
+const observer = new IntersectionObserver((entries, obs) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
       entry.target.style.opacity = '1';
       entry.target.style.transform = 'translateY(0)';
+      obs.unobserve(entry.target);
     }
   });
 }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
