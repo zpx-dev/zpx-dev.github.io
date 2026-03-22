@@ -9,6 +9,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#08090c">
+<meta property="og:title" content="zpx — The fast reverse proxy">
+<meta property="og:description" content="Written in Zig. Matches HAProxy at 527K req/s. 2.5x Traefik, 4.7x Caddy. HTTP/2, kTLS, ACME, hot reload. One binary.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://zpx-dev.github.io">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="zpx — The fast reverse proxy">
+<meta name="twitter:description" content="Written in Zig. Matches HAProxy at 527K req/s. 2.5x Traefik, 4.7x Caddy. One binary, zero runtime deps.">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -20,10 +27,10 @@
   --border-bright: #2a3038;
   --text: #e8ecf1;
   --text-secondary: #8891a0;
-  --text-tertiary: #5a6370;
+  --text-tertiary: #6e7784;
   --amber: #f7a41d;
   --amber-dim: #c8851a;
-  --amber-glow: rgba(247, 164, 29, 0.06);
+  --amber-glow: rgba(247, 164, 29, 0.08);
   --cyan: #4dc9f6;
   --green: #4ade80;
   --red: #f87171;
@@ -70,7 +77,7 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 1000;
   opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -124,17 +131,17 @@ body::after {
 
 .btn-docs {
   padding: 0.4rem 1rem;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
   font-family: var(--sans);
-  color: var(--bg);
+  color: #0a0800;
   background: var(--amber);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
-.btn-docs:hover { background: #fbb540; text-decoration: none; color: var(--bg); }
+.btn-docs:hover { background: #fbb540; text-decoration: none; color: #0a0800; }
 
 /* ── Hero ── */
 .hero {
@@ -201,12 +208,12 @@ body::after {
   font-size: 0.9rem;
   font-weight: 600;
   font-family: var(--sans);
-  color: var(--bg);
+  color: #0a0800;
   background: var(--amber);
   border-radius: var(--radius-md);
   transition: background 0.15s, transform 0.1s;
 }
-.btn-primary:hover { background: #fbb540; text-decoration: none; transform: translateY(-1px); }
+.btn-primary:hover { background: #fbb540; text-decoration: none; color: #0a0800; transform: translateY(-1px); }
 
 .btn-secondary {
   display: inline-block;
@@ -680,6 +687,7 @@ footer {
   .features-grid { grid-template-columns: 1fr; }
   .ticker { gap: 1.5rem; padding: 1rem 1.5rem; }
   .topbar-nav a:not(.gh):not(.btn-docs) { display: none; }
+  .topbar-nav { gap: 1rem; }
 }
 
 @media (max-width: 600px) {
@@ -738,7 +746,7 @@ footer {
 <!-- Hero -->
 <section class="hero" aria-label="Introduction">
   <div class="hero-text animate-in">
-    <div class="hero-number" aria-label="527 thousand requests per second">527K<span class="unit">req/s</span></div>
+    <div class="hero-number" aria-label="527 thousand requests per second"><span class="hero-counter" data-target="527">0</span>K<span class="unit">req/s</span></div>
     <h1>The fast<br><span class="thin">reverse proxy.</span></h1>
     <p class="sub">Written in Zig. No garbage collector, no runtime overhead. HTTP/2 frontends, kTLS offload, ACME certificates, hot reload, Docker discovery. One binary.</p>
     <div class="hero-actions">
@@ -945,11 +953,28 @@ footer {
 
 <script>
 window.addEventListener('load', () => {
+  // Animate benchmark bars
   setTimeout(() => {
     document.querySelectorAll('.bench-bar').forEach(bar => {
       bar.style.width = bar.dataset.width + '%';
     });
   }, 400);
+
+  // Count up hero number
+  const counter = document.querySelector('.hero-counter');
+  if (counter && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const target = parseInt(counter.dataset.target);
+    const duration = 1200;
+    const start = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 4); // ease-out-quart
+    (function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      counter.textContent = Math.round(ease(t) * target);
+      if (t < 1) requestAnimationFrame(tick);
+    })(start);
+  } else if (counter) {
+    counter.textContent = counter.dataset.target;
+  }
 });
 
 document.querySelector('.cta-install').addEventListener('click', function() {
